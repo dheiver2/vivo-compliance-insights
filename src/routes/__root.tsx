@@ -79,11 +79,44 @@ function RootShell({ children }: { children: React.ReactNode }) {
   );
 }
 
+import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
+import { AppSidebar } from "@/components/AppSidebar";
+import { Bell, Search } from "lucide-react";
+
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
   return (
     <QueryClientProvider client={queryClient}>
-      <Outlet />
+      <SidebarProvider>
+        <div className="min-h-screen flex w-full bg-background">
+          <AppSidebar />
+          <div className="flex-1 flex flex-col min-w-0">
+            <header className="sticky top-0 z-30 flex h-14 items-center gap-3 border-b border-border bg-background/80 px-4 backdrop-blur-md">
+              <SidebarTrigger />
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <Search className="h-4 w-4" />
+                <span>Buscar ligações, protocolos, atendentes…</span>
+              </div>
+              <div className="ml-auto flex items-center gap-3">
+                <button className="relative rounded-md p-2 hover:bg-muted">
+                  <Bell className="h-4 w-4" />
+                  <span className="absolute right-1 top-1 h-2 w-2 rounded-full bg-destructive" />
+                </button>
+                <div className="flex items-center gap-2">
+                  <div className="h-8 w-8 rounded-full bg-[image:var(--gradient-primary)] flex items-center justify-center text-xs font-semibold text-primary-foreground">SR</div>
+                  <div className="text-xs leading-tight hidden sm:block">
+                    <div className="font-semibold">Supervisor RH</div>
+                    <div className="text-muted-foreground">Vivo · São Paulo</div>
+                  </div>
+                </div>
+              </div>
+            </header>
+            <main className="flex-1 p-6 overflow-x-hidden">
+              <Outlet />
+            </main>
+          </div>
+        </div>
+      </SidebarProvider>
     </QueryClientProvider>
   );
 }

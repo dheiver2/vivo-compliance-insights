@@ -592,6 +592,76 @@ async function threeCplusGet<T>(path: string, token: string): Promise<T> {
   return (payload?.data ?? payload) as T;
 }
 
+// Baixa a gravação de uma ligação na 3C Plus.
+//
+// Particularidades descobertas testando a API real:
+//  - O host correto é o de THREECPLUS_BASE (3c.fluxoti.com). O campo `recording`
+//    do relatório aponta para `app.3c.plus`, que responde 404 — por isso NÃO o
+//    usamos; construímos a URL no host que funciona.
+//  - O endpoint impõe rate limit (~1 download / 5 s). Quando estourado, devolve
+//    HTTP 422 com `error: "Muitas requisições, aguarde 5 segundos..."`. Tratamos
+//    isso com algumas tentativas espaçadas em vez de falhar de imediato.
+//  - Ligações sem áudio (caixa postal, sem atendimento) respondem 404.
+async function downloadThreeCplusRecording(
+  callId: string,
+  token: string,
+): Promise<{ bytes: Uint8Array; contentType: string }> {
+  const url = withApiToken(
+    `${THREECPLUS_BASE}/calls/${encodeURIComponent(callId)}/recording`,
+    token,
+  );
+  const maxAttempts = 4;
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    let res: Response;
+    try {
+      res = await fetch(url, { headers: { Accept: "*/*" } });
+    } catch (error) {
+      throw new Error(
+        `Não foi possível acessar a gravação: ${
+          error instanceof Error ? error.message : "erro de rede"
+        }`,
+      );
+    }
+    if (res.ok) {
+      const contentType = res.headers.get("content-type") || "application/octet-stream";
+      const bytes = new Uint8Array(await res.arrayBuffer());
+      if (bytes.byteLength === 0) {
+        throw new Error(
+          "Esta ligação não tem áudio disponível na 3C Plus (provável caixa postal ou chamada sem atendimento).",
+        );
+      }
+      if (bytes.byteLength > MAX_AUDIO_BYTES) {
+        throw new Error(
+          `Gravação muito grande (${(bytes.byteLength / 1024 / 1024).toFixed(1)} MB). Limite: ${
+            MAX_AUDIO_BYTES / 1024 / 1024
+          } MB.`,
+        );
+      }
+      return { bytes, contentType };
+    }
+    const detail = await res.text().catch(() => "");
+    const isRateLimit = res.status === 422 && /muitas requisi/i.test(detail);
+    if (isRateLimit && attempt < maxAttempts) {
+      // A própria API pede ~5 s; aguardamos antes de tentar de novo.
+      await new Promise((r) => setTimeout(r, 5200));
+      continue;
+    }
+    if (res.status === 404) {
+      throw new Error(
+        "Esta ligação não tem áudio disponível na 3C Plus (provável caixa postal ou chamada sem atendimento). Selecione uma ligação com tempo de conversa.",
+      );
+    }
+    if (isRateLimit) {
+      throw new Error(
+        "A 3C Plus está limitando os downloads de gravação (muitas requisições). Aguarde alguns segundos e tente novamente.",
+      );
+    }
+    throw new Error(`3C Plus retornou ${res.status} ao baixar a gravação: ${detail.slice(0, 160)}`);
+  }
+  // Inalcançável, mas mantém o tipo de retorno consistente.
+  throw new Error("Falha ao baixar a gravação da 3C Plus após várias tentativas.");
+}
+
 // Item enxuto de ligação 3C Plus exposto à UI (telefone já mascarado).
 export interface ThreeCplusCall {
   id: string;
@@ -633,9 +703,10 @@ function toThreeCplusCall(r: ThreeCplusReport): ThreeCplusCall {
 }
 
 const ListThreeCplusInput = z.object({
-  // Janela de datas no formato exigido pela 3C Plus (Y-m-d H:i:s).
+  // Janela de datas no formato exigido pela 3C Plus (Y-m-d H:i:s). A API V2
+  // EXIGE ambas as datas (start_date e end_date) — sem end_date retorna 422.
   startDate: z.string().min(1, "Informe a data inicial (AAAA-MM-DD)."),
-  endDate: z.string().optional().default(""),
+  endDate: z.string().min(1, "Informe a data final (AAAA-MM-DD)."),
   perPage: z.number().int().positive().max(200).optional().default(50),
   apiToken: z.string().optional().default(""),
 });
@@ -648,10 +719,10 @@ export const listThreeCplusCalls = createServerFn({ method: "GET" })
     const token = resolveThreeCplusToken(data.apiToken);
     const params = new URLSearchParams({
       start_date: data.startDate,
+      end_date: data.endDate,
       per_page: String(data.perPage),
       with_mailing: "false",
     });
-    if (data.endDate.trim()) params.set("end_date", data.endDate.trim());
     const reports = await threeCplusGet<ThreeCplusReport[]>(`/calls?${params.toString()}`, token);
     const list = Array.isArray(reports) ? reports : [];
     return list.map(toThreeCplusCall);
@@ -687,12 +758,9 @@ export const analyzeThreeCplusCall = createServerFn({ method: "POST" })
       throw new Error("Transcrição de áudio requer a Mangaba AI ativa no servidor (HF_TOKEN).");
     }
 
-    // Baixa o áudio pelo endpoint dedicado de gravação (api_token na query).
-    const recordingUrl = withApiToken(
-      `${THREECPLUS_BASE}/calls/${encodeURIComponent(data.callId)}/recording`,
-      token,
-    );
-    const { bytes, contentType } = await downloadRecording(recordingUrl);
+    // Baixa o áudio pelo endpoint de gravação (host de THREECPLUS_BASE; trata
+    // rate limit e ligações sem áudio internamente).
+    const { bytes, contentType } = await downloadThreeCplusRecording(data.callId, token);
     const asrModel = process.env.HF_ASR_MODEL || DEFAULT_ASR_MODEL;
     const rawTranscript = await transcribeAudio(bytes, contentType, hfToken, asrModel);
 

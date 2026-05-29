@@ -650,7 +650,7 @@ function ThreeCplusPanel() {
   });
 
   const calls: ThreeCplusCall[] = listMut.data ?? [];
-  const canList = startDate.trim().length > 0 && !listMut.isPending;
+  const canList = startDate.trim().length > 0 && endDate.trim().length > 0 && !listMut.isPending;
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
@@ -693,9 +693,7 @@ function ThreeCplusPanel() {
               />
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor="tc-end" className="text-xs">
-                Data final <span className="text-muted-foreground font-normal">(opcional)</span>
-              </Label>
+              <Label htmlFor="tc-end" className="text-xs">Data final</Label>
               <Input
                 id="tc-end"
                 value={endDate}

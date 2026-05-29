@@ -6,7 +6,7 @@ import {
 } from "@/components/ui/sidebar";
 
 const items = [
-  { title: "Dashboard", url: "/", icon: LayoutDashboard },
+  { title: "Dashboard", url: "/dashboard", icon: LayoutDashboard },
   { title: "Análise IA", url: "/analyze", icon: Sparkles },
   { title: "Ligações", url: "/calls", icon: Phone },
   { title: "Agentes IA", url: "/agents", icon: Bot },
@@ -21,7 +21,7 @@ export function AppSidebar() {
   return (
     <Sidebar collapsible="icon">
       <SidebarHeader className="border-b border-sidebar-border">
-        <div className="flex items-center gap-2 px-2 py-3">
+        <Link to="/" className="flex items-center gap-2 px-2 py-3">
           <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-[image:var(--gradient-primary)] shadow-[var(--shadow-glow)]">
             <Headphones className="h-5 w-5 text-primary-foreground" />
           </div>
@@ -31,7 +31,7 @@ export function AppSidebar() {
               <span className="text-[10px] uppercase tracking-wider text-sidebar-foreground/60">Vivo · Compliance</span>
             </div>
           )}
-        </div>
+        </Link>
       </SidebarHeader>
 
       <SidebarContent>

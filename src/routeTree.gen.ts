@@ -10,6 +10,7 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as MonitoringRouteImport } from './routes/monitoring'
+import { Route as DashboardRouteImport } from './routes/dashboard'
 import { Route as CallsRouteImport } from './routes/calls'
 import { Route as AnalyzeRouteImport } from './routes/analyze'
 import { Route as AgentsRouteImport } from './routes/agents'
@@ -18,6 +19,11 @@ import { Route as IndexRouteImport } from './routes/index'
 const MonitoringRoute = MonitoringRouteImport.update({
   id: '/monitoring',
   path: '/monitoring',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const DashboardRoute = DashboardRouteImport.update({
+  id: '/dashboard',
+  path: '/dashboard',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AnalyzeRoute = AnalyzeRouteImport.update({
@@ -46,6 +52,7 @@ export interface FileRoutesByFullPath {
   '/agents': typeof AgentsRoute
   '/analyze': typeof AnalyzeRoute
   '/calls': typeof CallsRoute
+  '/dashboard': typeof DashboardRoute
   '/monitoring': typeof MonitoringRoute
 }
 export interface FileRoutesByTo {
@@ -53,6 +60,7 @@ export interface FileRoutesByTo {
   '/agents': typeof AgentsRoute
   '/analyze': typeof AnalyzeRoute
   '/calls': typeof CallsRoute
+  '/dashboard': typeof DashboardRoute
   '/monitoring': typeof MonitoringRoute
 }
 export interface FileRoutesById {
@@ -61,14 +69,22 @@ export interface FileRoutesById {
   '/agents': typeof AgentsRoute
   '/analyze': typeof AnalyzeRoute
   '/calls': typeof CallsRoute
+  '/dashboard': typeof DashboardRoute
   '/monitoring': typeof MonitoringRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/agents' | '/analyze' | '/calls' | '/monitoring'
+  fullPaths: '/' | '/agents' | '/analyze' | '/calls' | '/dashboard' | '/monitoring'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/agents' | '/analyze' | '/calls' | '/monitoring'
-  id: '__root__' | '/' | '/agents' | '/analyze' | '/calls' | '/monitoring'
+  to: '/' | '/agents' | '/analyze' | '/calls' | '/dashboard' | '/monitoring'
+  id:
+    | '__root__'
+    | '/'
+    | '/agents'
+    | '/analyze'
+    | '/calls'
+    | '/dashboard'
+    | '/monitoring'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -76,6 +92,7 @@ export interface RootRouteChildren {
   AgentsRoute: typeof AgentsRoute
   AnalyzeRoute: typeof AnalyzeRoute
   CallsRoute: typeof CallsRoute
+  DashboardRoute: typeof DashboardRoute
   MonitoringRoute: typeof MonitoringRoute
 }
 
@@ -93,6 +110,13 @@ declare module '@tanstack/react-router' {
       path: '/calls'
       fullPath: '/calls'
       preLoaderRoute: typeof CallsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/dashboard': {
+      id: '/dashboard'
+      path: '/dashboard'
+      fullPath: '/dashboard'
+      preLoaderRoute: typeof DashboardRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/analyze': {
@@ -124,6 +148,7 @@ const rootRouteChildren: RootRouteChildren = {
   AgentsRoute: AgentsRoute,
   AnalyzeRoute: AnalyzeRoute,
   CallsRoute: CallsRoute,
+  DashboardRoute: DashboardRoute,
   MonitoringRoute: MonitoringRoute,
 }
 export const routeTree = rootRouteImport

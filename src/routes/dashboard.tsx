@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Progress } from "@/components/ui/progress";
 import { StatusBadge } from "@/components/StatusBadge";
 import { getDashboard } from "@/lib/api/calls.functions";
+import { mangabaModelName } from "@/lib/mangaba";
 import type { DashboardData, TrendGranularity } from "@/lib/server/calls-store.server";
 import { TrendingUp, TrendingDown, Phone, ShieldCheck, Sparkles, AlertTriangle, Bot, Loader2 } from "lucide-react";
 import {
@@ -233,7 +234,7 @@ function Dashboard() {
                         </div>
                         <div>
                           <div className="font-semibold text-sm flex items-center gap-2">
-                            {a.name}
+                            {mangabaModelName(a.name)}
                             {a.status === "idle" && <span className="text-[10px] uppercase rounded bg-warning/30 px-1.5 py-0.5 text-warning-foreground">fallback</span>}
                           </div>
                           <div className="text-xs text-muted-foreground">{a.role}</div>

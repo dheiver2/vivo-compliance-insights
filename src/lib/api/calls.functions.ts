@@ -4,6 +4,7 @@ import { z } from "zod";
 
 import {
   clearCalls as clearStoredCalls,
+  reseedCalls as reseedStoredCalls,
   getAgentProfile,
   getAgentsPerformance,
   getCallById,
@@ -65,5 +66,14 @@ export const clearCalls = createServerFn({ method: "POST" }).handler(
   async (): Promise<{ ok: true }> => {
     await clearStoredCalls();
     return { ok: true };
+  },
+);
+
+// Restaura o seed de demonstração (10 ligações reais da 3C Plus), sobrescrevendo
+// o conteúdo atual do store.
+export const reseedCalls = createServerFn({ method: "POST" }).handler(
+  async (): Promise<{ ok: true; total: number }> => {
+    const total = await reseedStoredCalls();
+    return { ok: true, total };
   },
 );

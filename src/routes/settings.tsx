@@ -7,9 +7,9 @@ import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { getSystemStatus, clearCalls, type SystemStatus } from "@/lib/api/calls.functions";
+import { getSystemStatus, clearCalls, reseedCalls, type SystemStatus } from "@/lib/api/calls.functions";
 import { mangabaModelName } from "@/lib/mangaba";
-import { Settings, CheckCircle2, XCircle, Cpu, AudioLines, Database, Trash2, Loader2 } from "lucide-react";
+import { Settings, CheckCircle2, XCircle, Cpu, AudioLines, Database, Trash2, Loader2, RotateCcw } from "lucide-react";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/settings")({
@@ -50,6 +50,15 @@ function SettingsPage() {
     onError: (e) => toast.error(e instanceof Error ? e.message : "Falha ao limpar dados."),
   });
 
+  const reseed = useMutation({
+    mutationFn: () => reseedCalls(),
+    onSuccess: async (res) => {
+      await qc.invalidateQueries();
+      toast.success(`${res.total} ligações reais (3C Plus) restauradas.`);
+    },
+    onError: (e) => toast.error(e instanceof Error ? e.message : "Falha ao restaurar casos."),
+  });
+
   return (
     <div className="space-y-6 max-w-[900px] mx-auto">
       <header>
@@ -87,6 +96,17 @@ function SettingsPage() {
             </CardHeader>
             <CardContent className="pt-0">
               <StatusRow icon={Database} label="Total de análises" value={String(data.totalCalls)} />
+              <div className="flex items-center justify-between gap-4 pt-4 border-b border-border/60 pb-4">
+                <p className="text-sm text-muted-foreground">Restaura as 10 ligações reais de demonstração (3C Plus). Sobrescreve os dados atuais.</p>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => reseed.mutate()}
+                  disabled={reseed.isPending}
+                >
+                  {reseed.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <><RotateCcw className="h-4 w-4 mr-2" /> Restaurar casos reais</>}
+                </Button>
+              </div>
               <div className="flex items-center justify-between gap-4 pt-4">
                 <p className="text-sm text-muted-foreground">Remove permanentemente todas as ligações auditadas.</p>
                 <AlertDialog open={open} onOpenChange={setOpen}>

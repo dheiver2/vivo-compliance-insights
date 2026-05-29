@@ -289,6 +289,16 @@ export async function clearCalls(): Promise<void> {
   await persist();
 }
 
+// Restaura o store para o seed de demonstração (10 ligações reais da 3C Plus),
+// sobrescrevendo o conteúdo atual. Útil em produção, onde o KV durável já tem
+// dados e o seed automático (só no primeiro acesso) não roda mais.
+export async function reseedCalls(): Promise<number> {
+  await ensureLoaded();
+  seedStore();
+  await persist();
+  return store.length;
+}
+
 // ----------------------------------------------------------------------------
 // Agregações do Dashboard — todas derivadas das análises reais armazenadas.
 // ----------------------------------------------------------------------------

@@ -7,15 +7,37 @@ import { mangabaModelName } from "@/lib/mangaba";
 import { Bot, CheckCircle2, Activity, Loader2, Sparkles } from "lucide-react";
 
 export const Route = createFileRoute("/agents")({
-  head: () => ({ meta: [{ title: "Agentes IA · VoiceAudit" }, { name: "description", content: "Agentes de IA de compliance e qualidade." }] }),
+  head: () => ({
+    meta: [
+      { title: "Agentes IA · VoiceAudit" },
+      { name: "description", content: "Agentes de IA de compliance e qualidade." },
+    ],
+  }),
   component: AgentsPage,
 });
 
 // Capacidades de cada componente do pipeline (descrição estática do que a IA faz).
 const capabilities: Record<string, string[]> = {
-  llm: ["Identificação do atendente", "Aviso de gravação e consentimento LGPD", "Confirmação de dados cadastrais", "Comunicação de prazos e custos", "Resumo, protocolo e encerramento", "Score de qualidade e sentimento"],
-  asr: ["Transcrição automática de áudio", "Suporte a múltiplos formatos (mp3, wav, m4a, ogg…)", "Processamento em lote", "Motor Mangaba Voz"],
-  heuristic: ["Análise por palavras-chave", "Funciona offline (sem conexão)", "Fallback quando o Mangaba AI está indisponível", "Detecção básica de sentimento"],
+  llm: [
+    "Identificação do atendente",
+    "Aviso de gravação e consentimento LGPD",
+    "Confirmação de dados cadastrais",
+    "Comunicação de prazos e custos",
+    "Resumo, protocolo e encerramento",
+    "Score de qualidade e sentimento",
+  ],
+  asr: [
+    "Transcrição automática de áudio",
+    "Suporte a múltiplos formatos (mp3, wav, m4a, ogg…)",
+    "Processamento em lote",
+    "Motor Mangaba Voz",
+  ],
+  heuristic: [
+    "Análise por palavras-chave",
+    "Funciona offline (sem conexão)",
+    "Fallback quando o Mangaba AI está indisponível",
+    "Detecção básica de sentimento",
+  ],
 };
 
 function capsFor(name: string, role: string): string[] {
@@ -37,7 +59,9 @@ function AgentsPage() {
     <div className="space-y-6 max-w-[1400px] mx-auto">
       <header>
         <h1 className="text-3xl font-display font-bold">Agentes de IA</h1>
-        <p className="text-sm text-muted-foreground mt-1">Componentes do pipeline que processam as ligações — uso real</p>
+        <p className="text-sm text-muted-foreground mt-1">
+          Componentes do pipeline que processam as ligações — uso real
+        </p>
       </header>
 
       {isLoading && (
@@ -52,7 +76,10 @@ function AgentsPage() {
             <Bot className="h-12 w-12 mb-4 opacity-40" />
             <p className="text-base font-medium text-foreground">Nenhum agente acionado ainda</p>
             <p className="text-sm mt-1">Os componentes aparecem após a primeira análise.</p>
-            <Link to="/analyze" className="mt-6 inline-flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90">
+            <Link
+              to="/analyze"
+              className="mt-6 inline-flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90"
+            >
               <Sparkles className="h-4 w-4" /> Ir para Análise IA
             </Link>
           </CardContent>
@@ -77,7 +104,9 @@ function AgentsPage() {
                           <Activity className="h-2.5 w-2.5" /> ativo
                         </span>
                       ) : (
-                        <span className="text-[10px] uppercase rounded bg-warning/30 text-warning-foreground px-1.5 py-0.5">fallback</span>
+                        <span className="text-[10px] uppercase rounded bg-warning/30 text-warning-foreground px-1.5 py-0.5">
+                          fallback
+                        </span>
                       )}
                     </CardTitle>
                     <CardDescription>{a.role}</CardDescription>
@@ -86,10 +115,16 @@ function AgentsPage() {
               </CardHeader>
               <CardContent>
                 <div className="mb-4 pb-4 border-b border-border/60">
-                  <div className="text-[10px] uppercase text-muted-foreground">Análises processadas</div>
-                  <div className="text-2xl font-display font-bold">{a.calls.toLocaleString("pt-BR")}</div>
+                  <div className="text-[10px] uppercase text-muted-foreground">
+                    Análises processadas
+                  </div>
+                  <div className="text-2xl font-display font-bold">
+                    {a.calls.toLocaleString("pt-BR")}
+                  </div>
                 </div>
-                <div className="text-xs uppercase tracking-wider text-muted-foreground mb-2">Capacidades</div>
+                <div className="text-xs uppercase tracking-wider text-muted-foreground mb-2">
+                  Capacidades
+                </div>
                 <ul className="space-y-1.5">
                   {capsFor(a.name, a.role).map((s) => (
                     <li key={s} className="flex items-start gap-2 text-sm">

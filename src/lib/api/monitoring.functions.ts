@@ -10,9 +10,7 @@ import {
 // Server fns de gestão da Ficha de Monitoria. O store é server-only; aqui
 // expomos leitura e escrita da configuração de critérios usada pelos agentes.
 
-export const getForm = createServerFn({ method: "GET" }).handler(async () =>
-  getMonitoringForm(),
-);
+export const getForm = createServerFn({ method: "GET" }).handler(async () => getMonitoringForm());
 
 const CriterionSchema = z.object({
   id: z.string().optional().default(""),
@@ -25,7 +23,11 @@ const CriterionSchema = z.object({
 });
 
 export const saveForm = createServerFn({ method: "POST" })
-  .inputValidator(z.object({ criteria: z.array(CriterionSchema).min(1, "A ficha precisa de ao menos um critério.") }))
+  .inputValidator(
+    z.object({
+      criteria: z.array(CriterionSchema).min(1, "A ficha precisa de ao menos um critério."),
+    }),
+  )
   .handler(async ({ data }) => saveMonitoringForm(data.criteria));
 
 export const resetForm = createServerFn({ method: "POST" }).handler(async () =>

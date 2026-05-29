@@ -9,11 +9,48 @@ import { Textarea } from "@/components/ui/textarea";
 import { Progress } from "@/components/ui/progress";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { StatusBadge } from "@/components/StatusBadge";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { analyzeCall, analyzeAudio, analyzeCallFromUrl, MARKET_PROVIDERS, listThreeCplusCalls, analyzeThreeCplusCall, type ThreeCplusCall } from "@/lib/api/analyze.functions";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  analyzeCall,
+  analyzeAudio,
+  analyzeCallFromUrl,
+  MARKET_PROVIDERS,
+  listThreeCplusCalls,
+  analyzeThreeCplusCall,
+  type ThreeCplusCall,
+} from "@/lib/api/analyze.functions";
 import { SAMPLE_TRANSCRIPT, statusFromScore, type CallAnalysis } from "@/lib/compliance";
 import { mangabaSourceLabel } from "@/lib/mangaba";
-import { Sparkles, Wand2, FileText, CheckCircle2, XCircle, Cpu, Loader2, Smile, Meh, Frown, AudioLines, Upload, Trash2, ChevronDown, FileCheck, User, Plug, Link2, KeyRound, ShieldCheck, PhoneCall, Search } from "lucide-react";
+import {
+  Sparkles,
+  Wand2,
+  FileText,
+  CheckCircle2,
+  XCircle,
+  Cpu,
+  Loader2,
+  Smile,
+  Meh,
+  Frown,
+  AudioLines,
+  Upload,
+  Trash2,
+  ChevronDown,
+  FileCheck,
+  User,
+  Plug,
+  Link2,
+  KeyRound,
+  ShieldCheck,
+  PhoneCall,
+  Search,
+} from "lucide-react";
 
 export const Route = createFileRoute("/analyze")({
   head: () => ({
@@ -32,7 +69,8 @@ const sentimentMap = {
 } as const;
 
 function ScoreTile({ label, score }: { label: string; score: number }) {
-  const cls = score >= 85 ? "text-success" : score >= 70 ? "text-warning-foreground" : "text-destructive";
+  const cls =
+    score >= 85 ? "text-success" : score >= 70 ? "text-warning-foreground" : "text-destructive";
   return (
     <div className="rounded-lg border border-border/60 p-4 text-center">
       <div className="text-[10px] uppercase tracking-wider text-muted-foreground">{label}</div>
@@ -64,7 +102,11 @@ function Results({ result, detailId }: { result: CallAnalysis; detailId?: string
                 <span className="text-sm font-semibold">{Sent.label}</span>
               </div>
               {detailId && (
-                <Link to="/calls/$callId" params={{ callId: detailId }} className="inline-flex items-center gap-1.5 rounded-md border border-border px-2.5 py-1 text-xs font-medium hover:bg-muted">
+                <Link
+                  to="/calls/$callId"
+                  params={{ callId: detailId }}
+                  className="inline-flex items-center gap-1.5 rounded-md border border-border px-2.5 py-1 text-xs font-medium hover:bg-muted"
+                >
                   <FileCheck className="h-3.5 w-3.5" /> Ver ficha
                 </Link>
               )}
@@ -99,12 +141,16 @@ function Results({ result, detailId }: { result: CallAnalysis; detailId?: string
                   )}
                   {c.label}
                 </span>
-                <span className={`font-semibold ${c.score >= 85 ? "text-success" : c.score >= 70 ? "text-warning-foreground" : "text-destructive"}`}>
+                <span
+                  className={`font-semibold ${c.score >= 85 ? "text-success" : c.score >= 70 ? "text-warning-foreground" : "text-destructive"}`}
+                >
                   {c.score}%
                 </span>
               </div>
               <Progress value={c.score} className="h-2" />
-              {c.evidence && <p className="text-xs text-muted-foreground mt-1 ml-6">{c.evidence}</p>}
+              {c.evidence && (
+                <p className="text-xs text-muted-foreground mt-1 ml-6">{c.evidence}</p>
+              )}
             </div>
           ))}
         </CardContent>
@@ -118,12 +164,19 @@ function Results({ result, detailId }: { result: CallAnalysis; detailId?: string
           </CardHeader>
           <CardContent className="space-y-3">
             {result.observations.map((o, i) => (
-              <div key={i} className={`flex gap-3 rounded-lg border p-3 ${
-                o.severity === "critical" ? "border-destructive/30 bg-destructive/5" :
-                o.severity === "warning" ? "border-warning/40 bg-warning/5" :
-                "border-success/30 bg-success/5"
-              }`}>
-                <div className="font-mono text-xs text-muted-foreground pt-0.5 min-w-12">{o.time}</div>
+              <div
+                key={i}
+                className={`flex gap-3 rounded-lg border p-3 ${
+                  o.severity === "critical"
+                    ? "border-destructive/30 bg-destructive/5"
+                    : o.severity === "warning"
+                      ? "border-warning/40 bg-warning/5"
+                      : "border-success/30 bg-success/5"
+                }`}
+              >
+                <div className="font-mono text-xs text-muted-foreground pt-0.5 min-w-12">
+                  {o.time}
+                </div>
                 <div className="flex-1">
                   <div className="text-xs font-semibold text-primary">{o.agent}</div>
                   <div className="text-sm mt-0.5">{o.note}</div>
@@ -141,7 +194,8 @@ function TextPanel() {
   const [transcript, setTranscript] = useState("");
   const [agentName, setAgentName] = useState("");
   const mutation = useMutation({
-    mutationFn: (text: string) => analyzeCall({ data: { transcript: text, agentName: agentName.trim() || undefined } }),
+    mutationFn: (text: string) =>
+      analyzeCall({ data: { transcript: text, agentName: agentName.trim() || undefined } }),
   });
 
   return (
@@ -156,7 +210,8 @@ function TextPanel() {
         <CardContent className="space-y-3">
           <div className="space-y-1.5">
             <Label htmlFor="agent-text" className="flex items-center gap-1.5 text-xs">
-              <User className="h-3.5 w-3.5 text-muted-foreground" /> Atendente responsável <span className="text-muted-foreground font-normal">(opcional)</span>
+              <User className="h-3.5 w-3.5 text-muted-foreground" /> Atendente responsável{" "}
+              <span className="text-muted-foreground font-normal">(opcional)</span>
             </Label>
             <Input
               id="agent-text"
@@ -178,23 +233,36 @@ function TextPanel() {
               disabled={mutation.isPending || transcript.trim().length < 20}
             >
               {mutation.isPending ? (
-                <><Loader2 className="h-4 w-4 animate-spin" /> Analisando…</>
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" /> Analisando…
+                </>
               ) : (
-                <><Wand2 className="h-4 w-4" /> Analisar com IA</>
+                <>
+                  <Wand2 className="h-4 w-4" /> Analisar com IA
+                </>
               )}
             </Button>
-            <Button variant="outline" onClick={() => setTranscript(SAMPLE_TRANSCRIPT)} disabled={mutation.isPending}>
+            <Button
+              variant="outline"
+              onClick={() => setTranscript(SAMPLE_TRANSCRIPT)}
+              disabled={mutation.isPending}
+            >
               Carregar amostra
             </Button>
             {transcript && (
-              <Button variant="ghost" onClick={() => setTranscript("")} disabled={mutation.isPending}>
+              <Button
+                variant="ghost"
+                onClick={() => setTranscript("")}
+                disabled={mutation.isPending}
+              >
                 Limpar
               </Button>
             )}
           </div>
           {mutation.isError && (
             <p className="text-sm text-destructive">
-              Erro ao analisar: {mutation.error instanceof Error ? mutation.error.message : "tente novamente."}
+              Erro ao analisar:{" "}
+              {mutation.error instanceof Error ? mutation.error.message : "tente novamente."}
             </p>
           )}
         </CardContent>
@@ -208,7 +276,9 @@ function TextPanel() {
             <CardContent className="flex flex-col items-center justify-center text-center py-20 text-muted-foreground">
               <Sparkles className="h-10 w-10 mb-3 opacity-40" />
               <p className="text-sm">O resultado da análise aparecerá aqui.</p>
-              <p className="text-xs mt-1">Cole uma transcrição ou carregue a amostra para começar.</p>
+              <p className="text-xs mt-1">
+                Cole uma transcrição ou carregue a amostra para começar.
+              </p>
             </CardContent>
           </Card>
         )}
@@ -276,7 +346,9 @@ function AudioJobCard({ job }: { job: AudioJob }) {
               {job.file.type ? ` · ${job.file.type}` : ""}
             </CardDescription>
           </div>
-          <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium ${meta.cls}`}>
+          <span
+            className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium ${meta.cls}`}
+          >
             {busy && <Loader2 className="h-3 w-3 animate-spin" />}
             {job.status === "ok" && job.result && (
               <StatusBadge status={statusFromScore(job.result.scoreCompliance)} />
@@ -305,7 +377,9 @@ function AudioJobCard({ job }: { job: AudioJob }) {
                 <span className="flex items-center gap-2">
                   <FileText className="h-4 w-4 text-muted-foreground" /> Resumo da auditoria
                 </span>
-                <ChevronDown className={`h-4 w-4 transition-transform ${open ? "rotate-180" : ""}`} />
+                <ChevronDown
+                  className={`h-4 w-4 transition-transform ${open ? "rotate-180" : ""}`}
+                />
               </button>
               {open && (
                 <pre className="max-h-64 overflow-auto whitespace-pre-wrap border-t border-border/60 p-3 font-mono text-xs leading-relaxed text-muted-foreground">
@@ -350,10 +424,20 @@ function AudioBatchPanel() {
         const base64 = await fileToBase64(job.file);
         update(job.id, { status: "analisando" });
         const res = await analyzeAudio({
-          data: { filename: job.file.name, mimeType: job.file.type, base64, agentName: agentName.trim() || undefined },
+          data: {
+            filename: job.file.name,
+            mimeType: job.file.type,
+            base64,
+            agentName: agentName.trim() || undefined,
+          },
         });
         const { transcript, filename: _filename, id, protocol: _protocol, ...analysis } = res;
-        update(job.id, { status: "ok", result: analysis as CallAnalysis, transcript, detailId: id });
+        update(job.id, {
+          status: "ok",
+          result: analysis as CallAnalysis,
+          transcript,
+          detailId: id,
+        });
       } catch (error) {
         update(job.id, {
           status: "erro",
@@ -382,7 +466,10 @@ function AudioBatchPanel() {
         <CardContent className="space-y-4">
           <div className="space-y-1.5">
             <Label htmlFor="agent-audio" className="flex items-center gap-1.5 text-xs">
-              <User className="h-3.5 w-3.5 text-muted-foreground" /> Atendente responsável <span className="text-muted-foreground font-normal">(opcional — aplicado a todos os áudios deste lote)</span>
+              <User className="h-3.5 w-3.5 text-muted-foreground" /> Atendente responsável{" "}
+              <span className="text-muted-foreground font-normal">
+                (opcional — aplicado a todos os áudios deste lote)
+              </span>
             </Label>
             <Input
               id="agent-audio"
@@ -417,16 +504,17 @@ function AudioBatchPanel() {
             <div className="flex flex-wrap items-center gap-2">
               <Button onClick={runAll} disabled={running || pendingCount === 0}>
                 {running ? (
-                  <><Loader2 className="h-4 w-4 animate-spin" /> Processando…</>
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" /> Processando…
+                  </>
                 ) : (
-                  <><Wand2 className="h-4 w-4" /> Analisar {pendingCount > 0 ? `(${pendingCount})` : "lote"}</>
+                  <>
+                    <Wand2 className="h-4 w-4" /> Analisar{" "}
+                    {pendingCount > 0 ? `(${pendingCount})` : "lote"}
+                  </>
                 )}
               </Button>
-              <Button
-                variant="ghost"
-                onClick={() => setJobs([])}
-                disabled={running}
-              >
+              <Button variant="ghost" onClick={() => setJobs([])} disabled={running}>
                 <Trash2 className="h-4 w-4" /> Limpar lista
               </Button>
               <span className="ml-auto text-xs text-muted-foreground">
@@ -489,9 +577,9 @@ function MarketApiPanel() {
             <Plug className="h-4 w-4 text-primary" /> Receber ligação via API de mercado
           </CardTitle>
           <CardDescription>
-            Conecte um provedor de telefonia/contact center (Twilio, Genesys, NICE CXone,
-            Five9, Amazon Connect, Vonage, Zenvia). Informe a URL da gravação — o servidor
-            baixa o áudio, transcreve com o Mangaba Voz e roda a auditoria.
+            Conecte um provedor de telefonia/contact center (Twilio, Genesys, NICE CXone, Five9,
+            Amazon Connect, Vonage, Zenvia). Informe a URL da gravação — o servidor baixa o áudio,
+            transcreve com o Mangaba Voz e roda a auditoria.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -504,14 +592,17 @@ function MarketApiPanel() {
                 </SelectTrigger>
                 <SelectContent>
                   {MARKET_PROVIDERS.map((p) => (
-                    <SelectItem key={p.id} value={p.id}>{p.label}</SelectItem>
+                    <SelectItem key={p.id} value={p.id}>
+                      {p.label}
+                    </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="external-id" className="text-xs">
-                ID da ligação <span className="text-muted-foreground font-normal">(no provedor)</span>
+                ID da ligação{" "}
+                <span className="text-muted-foreground font-normal">(no provedor)</span>
               </Label>
               <Input
                 id="external-id"
@@ -538,7 +629,8 @@ function MarketApiPanel() {
 
           <div className="space-y-1.5">
             <Label htmlFor="auth-header" className="flex items-center gap-1.5 text-xs">
-              <KeyRound className="h-3.5 w-3.5 text-muted-foreground" /> Autorização <span className="text-muted-foreground font-normal">(opcional)</span>
+              <KeyRound className="h-3.5 w-3.5 text-muted-foreground" /> Autorização{" "}
+              <span className="text-muted-foreground font-normal">(opcional)</span>
             </Label>
             <Input
               id="auth-header"
@@ -548,13 +640,15 @@ function MarketApiPanel() {
               disabled={mutation.isPending}
             />
             <p className="text-[11px] text-muted-foreground">
-              Enviado como cabeçalho <code className="font-mono">Authorization</code> ao baixar a gravação no provedor.
+              Enviado como cabeçalho <code className="font-mono">Authorization</code> ao baixar a
+              gravação no provedor.
             </p>
           </div>
 
           <div className="space-y-1.5">
             <Label htmlFor="agent-api" className="flex items-center gap-1.5 text-xs">
-              <User className="h-3.5 w-3.5 text-muted-foreground" /> Atendente responsável <span className="text-muted-foreground font-normal">(opcional)</span>
+              <User className="h-3.5 w-3.5 text-muted-foreground" /> Atendente responsável{" "}
+              <span className="text-muted-foreground font-normal">(opcional)</span>
             </Label>
             <Input
               id="agent-api"
@@ -567,7 +661,10 @@ function MarketApiPanel() {
 
           <div className="space-y-1.5">
             <Label htmlFor="api-transcript" className="flex items-center gap-1.5 text-xs">
-              <FileText className="h-3.5 w-3.5 text-muted-foreground" /> Transcrição do provedor <span className="text-muted-foreground font-normal">(opcional — pula a transcrição por áudio)</span>
+              <FileText className="h-3.5 w-3.5 text-muted-foreground" /> Transcrição do provedor{" "}
+              <span className="text-muted-foreground font-normal">
+                (opcional — pula a transcrição por áudio)
+              </span>
             </Label>
             <Textarea
               id="api-transcript"
@@ -582,15 +679,24 @@ function MarketApiPanel() {
           <div className="flex flex-wrap gap-2">
             <Button onClick={() => mutation.mutate()} disabled={!canSubmit}>
               {mutation.isPending ? (
-                <><Loader2 className="h-4 w-4 animate-spin" /> Recebendo e analisando…</>
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" /> Recebendo e analisando…
+                </>
               ) : (
-                <><Plug className="h-4 w-4" /> Receber e analisar</>
+                <>
+                  <Plug className="h-4 w-4" /> Receber e analisar
+                </>
               )}
             </Button>
             {(recordingUrl || transcript || externalId || authHeader) && (
               <Button
                 variant="ghost"
-                onClick={() => { setRecordingUrl(""); setTranscript(""); setExternalId(""); setAuthHeader(""); }}
+                onClick={() => {
+                  setRecordingUrl("");
+                  setTranscript("");
+                  setExternalId("");
+                  setAuthHeader("");
+                }}
                 disabled={mutation.isPending}
               >
                 Limpar
@@ -599,12 +705,14 @@ function MarketApiPanel() {
           </div>
           {!hasUrl && !hasTranscript && (
             <p className="text-xs text-muted-foreground">
-              Informe uma URL de gravação <strong>ou</strong> cole a transcrição do provedor para habilitar a análise.
+              Informe uma URL de gravação <strong>ou</strong> cole a transcrição do provedor para
+              habilitar a análise.
             </p>
           )}
           {mutation.isError && (
             <p className="text-sm text-destructive">
-              Erro ao receber a ligação: {mutation.error instanceof Error ? mutation.error.message : "tente novamente."}
+              Erro ao receber a ligação:{" "}
+              {mutation.error instanceof Error ? mutation.error.message : "tente novamente."}
             </p>
           )}
         </CardContent>
@@ -618,7 +726,9 @@ function MarketApiPanel() {
             <CardContent className="flex flex-col items-center justify-center text-center py-20 text-muted-foreground">
               <Plug className="h-10 w-10 mb-3 opacity-40" />
               <p className="text-sm">A ligação recebida do provedor será auditada aqui.</p>
-              <p className="text-xs mt-1">Cole a URL da gravação exposta pela API do contact center.</p>
+              <p className="text-xs mt-1">
+                Cole a URL da gravação exposta pela API do contact center.
+              </p>
             </CardContent>
           </Card>
         )}
@@ -660,16 +770,18 @@ function ThreeCplusPanel() {
             <PhoneCall className="h-4 w-4 text-primary" /> 3C Plus — gravações de atendentes
           </CardTitle>
           <CardDescription>
-            Conecta-se à API do discador 3C Plus (3C+ V2). Liste as ligações por período
-            e audite a gravação com um clique — o servidor baixa o áudio, transcreve com o
-            Mangaba Voz, mascara PII (LGPD) e roda a auditoria.
+            Conecta-se à API do discador 3C Plus (3C+ V2). Liste as ligações por período e audite a
+            gravação com um clique — o servidor baixa o áudio, transcreve com o Mangaba Voz, mascara
+            PII (LGPD) e roda a auditoria.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="space-y-1.5">
             <Label htmlFor="tc-token" className="flex items-center gap-1.5 text-xs">
               <KeyRound className="h-3.5 w-3.5 text-muted-foreground" /> API token{" "}
-              <span className="text-muted-foreground font-normal">(opcional se THREECPLUS_API_TOKEN estiver no servidor)</span>
+              <span className="text-muted-foreground font-normal">
+                (opcional se THREECPLUS_API_TOKEN estiver no servidor)
+              </span>
             </Label>
             <Input
               id="tc-token"
@@ -683,7 +795,9 @@ function ThreeCplusPanel() {
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div className="space-y-1.5">
-              <Label htmlFor="tc-start" className="text-xs">Data inicial</Label>
+              <Label htmlFor="tc-start" className="text-xs">
+                Data inicial
+              </Label>
               <Input
                 id="tc-start"
                 value={startDate}
@@ -693,7 +807,9 @@ function ThreeCplusPanel() {
               />
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor="tc-end" className="text-xs">Data final</Label>
+              <Label htmlFor="tc-end" className="text-xs">
+                Data final
+              </Label>
               <Input
                 id="tc-end"
                 value={endDate}
@@ -707,24 +823,34 @@ function ThreeCplusPanel() {
           <div className="flex flex-wrap gap-2">
             <Button onClick={() => listMut.mutate()} disabled={!canList}>
               {listMut.isPending ? (
-                <><Loader2 className="h-4 w-4 animate-spin" /> Buscando…</>
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" /> Buscando…
+                </>
               ) : (
-                <><Search className="h-4 w-4" /> Listar ligações</>
+                <>
+                  <Search className="h-4 w-4" /> Listar ligações
+                </>
               )}
             </Button>
           </div>
           {listMut.isError && (
             <p className="text-sm text-destructive">
-              Erro ao listar: {listMut.error instanceof Error ? listMut.error.message : "tente novamente."}
+              Erro ao listar:{" "}
+              {listMut.error instanceof Error ? listMut.error.message : "tente novamente."}
             </p>
           )}
 
           {calls.length > 0 && (
             <div className="border rounded-md divide-y max-h-[360px] overflow-auto">
               {calls.map((c) => (
-                <div key={c.id || c.sid} className="flex items-center justify-between gap-3 p-2.5 text-xs">
+                <div
+                  key={c.id || c.sid}
+                  className="flex items-center justify-between gap-3 p-2.5 text-xs"
+                >
                   <div className="min-w-0">
-                    <p className="font-medium truncate">{c.agent || "Sem atendente"} · {c.number || "—"}</p>
+                    <p className="font-medium truncate">
+                      {c.agent || "Sem atendente"} · {c.number || "—"}
+                    </p>
                     <p className="text-muted-foreground truncate">
                       {c.callDate || "—"} · {c.campaign || c.queueName || "—"}
                     </p>
@@ -736,20 +862,29 @@ function ThreeCplusPanel() {
                     onClick={() => analyzeMut.mutate(c.id || c.sid)}
                   >
                     {analyzeMut.isPending && analyzeMut.variables === (c.id || c.sid) ? (
-                      <><Loader2 className="h-3.5 w-3.5 animate-spin" /> …</>
-                    ) : c.recorded ? "Analisar" : "Sem gravação"}
+                      <>
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" /> …
+                      </>
+                    ) : c.recorded ? (
+                      "Analisar"
+                    ) : (
+                      "Sem gravação"
+                    )}
                   </Button>
                 </div>
               ))}
             </div>
           )}
           {listMut.isSuccess && calls.length === 0 && (
-            <p className="text-xs text-muted-foreground">Nenhuma ligação encontrada nesse período.</p>
+            <p className="text-xs text-muted-foreground">
+              Nenhuma ligação encontrada nesse período.
+            </p>
           )}
 
           <div className="pt-2 border-t space-y-1.5">
             <Label htmlFor="tc-callid" className="flex items-center gap-1.5 text-xs">
-              <PhoneCall className="h-3.5 w-3.5 text-muted-foreground" /> Analisar por ID/SID da ligação
+              <PhoneCall className="h-3.5 w-3.5 text-muted-foreground" /> Analisar por ID/SID da
+              ligação
             </Label>
             <div className="flex gap-2">
               <Input
@@ -769,7 +904,8 @@ function ThreeCplusPanel() {
           </div>
           {analyzeMut.isError && (
             <p className="text-sm text-destructive">
-              Erro ao analisar: {analyzeMut.error instanceof Error ? analyzeMut.error.message : "tente novamente."}
+              Erro ao analisar:{" "}
+              {analyzeMut.error instanceof Error ? analyzeMut.error.message : "tente novamente."}
             </p>
           )}
         </CardContent>
@@ -783,7 +919,9 @@ function ThreeCplusPanel() {
             <CardContent className="flex flex-col items-center justify-center text-center py-20 text-muted-foreground">
               <PhoneCall className="h-10 w-10 mb-3 opacity-40" />
               <p className="text-sm">A gravação analisada da 3C Plus aparece aqui.</p>
-              <p className="text-xs mt-1">Liste por período e clique em “Analisar”, ou informe o ID da ligação.</p>
+              <p className="text-xs mt-1">
+                Liste por período e clique em “Analisar”, ou informe o ID da ligação.
+              </p>
             </CardContent>
           </Card>
         )}

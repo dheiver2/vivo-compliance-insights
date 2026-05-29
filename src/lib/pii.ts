@@ -47,7 +47,11 @@ const RULES: { kind: PiiKind; re: RegExp; replace: (m: string) => string }[] = [
   // CPF formatado: 000.000.000-00
   { kind: "cpf", re: /\b\d{3}\.\d{3}\.\d{3}-\d{2}\b/g, replace: () => "[CPF]" },
   // E-mail
-  { kind: "email", re: /\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b/g, replace: () => "[E-MAIL]" },
+  {
+    kind: "email",
+    re: /\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b/g,
+    replace: () => "[E-MAIL]",
+  },
   // Telefone BR: opcional +55, DDD entre parênteses, fixo (8) ou celular (9).
   {
     kind: "telefone",

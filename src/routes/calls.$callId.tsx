@@ -20,7 +20,10 @@ function CallDetailPage() {
 
   return (
     <div className="space-y-6 max-w-[1400px] mx-auto">
-      <Link to="/calls" className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground">
+      <Link
+        to="/calls"
+        className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground"
+      >
         <ArrowLeft className="h-4 w-4" /> Voltar para Ligações
       </Link>
 
@@ -35,8 +38,13 @@ function CallDetailPage() {
           <CardContent className="flex flex-col items-center justify-center text-center py-24 text-muted-foreground">
             <Search className="h-12 w-12 mb-4 opacity-40" />
             <p className="text-base font-medium text-foreground">Ligação não encontrada</p>
-            <p className="text-sm mt-1">O registro <span className="font-mono">{callId}</span> não existe ou foi removido.</p>
-            <Link to="/calls" className="mt-6 inline-flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90">
+            <p className="text-sm mt-1">
+              O registro <span className="font-mono">{callId}</span> não existe ou foi removido.
+            </p>
+            <Link
+              to="/calls"
+              className="mt-6 inline-flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90"
+            >
               Ver todas as ligações
             </Link>
           </CardContent>

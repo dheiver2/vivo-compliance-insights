@@ -21,9 +21,7 @@ export const getDashboard = createServerFn({ method: "GET" })
   )
   .handler(async ({ data }) => getDashboardData(data?.granularity ?? "day"));
 
-export const listCalls = createServerFn({ method: "GET" }).handler(async () =>
-  listStoredCalls(),
-);
+export const listCalls = createServerFn({ method: "GET" }).handler(async () => listStoredCalls());
 
 // Detalhe de uma ligação específica pelo id (ex.: "C-10001").
 export const getCall = createServerFn({ method: "GET" })

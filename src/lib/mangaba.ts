@@ -20,9 +20,9 @@ const MODEL_CATALOG: Record<string, string> = {
   // rótulos "amigáveis" que o backend pode emitir
   "whisper large-v3": "Mangaba Voz",
   "heurística local": "Mangaba Básico",
-  "huggingface": "Mangaba Compliance",
-  "heurística": "Mangaba Básico",
-  "heuristic": "Mangaba Básico",
+  huggingface: "Mangaba Compliance",
+  heurística: "Mangaba Básico",
+  heuristic: "Mangaba Básico",
 };
 
 // Nome de produto Mangaba para qualquer modelo/identificador técnico.
@@ -38,18 +38,12 @@ export function mangabaModelName(model?: string | null): string {
 }
 
 // Rótulo completo da fonte de uma análise (marca + modelo) para cabeçalhos.
-export function mangabaSourceLabel(
-  source: CallAnalysis["source"],
-  model?: string | null,
-): string {
+export function mangabaSourceLabel(source: CallAnalysis["source"], model?: string | null): string {
   if (source === "huggingface") return `${MANGABA_BRAND} · ${mangabaModelName(model)}`;
   return "Mangaba Básico · análise local";
 }
 
 // Nome curto da fonte para tabelas/cards compactos.
-export function mangabaSourceShort(
-  source: CallAnalysis["source"],
-  model?: string | null,
-): string {
+export function mangabaSourceShort(source: CallAnalysis["source"], model?: string | null): string {
   return source === "huggingface" ? mangabaModelName(model) : "Mangaba Básico";
 }

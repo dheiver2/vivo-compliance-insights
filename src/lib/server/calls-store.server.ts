@@ -197,7 +197,9 @@ function ensureLoaded(): Promise<void> {
           store.length = 0;
           // Backfill de campos novos para registros gravados antes da entidade
           // de agente existir — garante que toda ligação tenha um atendente.
-          store.push(...data.calls.map((c) => ({ ...c, agentName: normalizeAgentName(c.agentName) })));
+          store.push(
+            ...data.calls.map((c) => ({ ...c, agentName: normalizeAgentName(c.agentName) })),
+          );
         }
         if (typeof data.seq === "number" && data.seq > seq) seq = data.seq;
       } catch {
@@ -222,9 +224,12 @@ function classifyTopic(text: string): string {
   if (has("cancel")) return "Cancelamento";
   if (has("portabil", "portar o número", "trazer meu número")) return "Portabilidade";
   if (has("roaming", "internacional", "no exterior", "viagem")) return "Roaming internacional";
-  if (has("fatura", "cobran", "boleto", "pagamento", "valor cobrado", "cobrar")) return "Cobrança/Fatura";
-  if (has("sinal", "sem internet", "lentidão", "lento", "não funciona", "técnic", "reparo", "caiu")) return "Suporte técnico";
-  if (has("upgrade", "oferta", "promo", "contratar", "plano novo", "migrar de plano")) return "Vendas/Upgrade";
+  if (has("fatura", "cobran", "boleto", "pagamento", "valor cobrado", "cobrar"))
+    return "Cobrança/Fatura";
+  if (has("sinal", "sem internet", "lentidão", "lento", "não funciona", "técnic", "reparo", "caiu"))
+    return "Suporte técnico";
+  if (has("upgrade", "oferta", "promo", "contratar", "plano novo", "migrar de plano"))
+    return "Vendas/Upgrade";
   return "Outros";
 }
 
@@ -261,7 +266,8 @@ export async function recordAnalysis(input: {
     status: statusFromScore(analysis.scoreCompliance),
     summary: analysis.summary,
     source: analysis.source,
-    model: analysis.model ?? (analysis.source === "huggingface" ? "huggingface" : "heurística local"),
+    model:
+      analysis.model ?? (analysis.source === "huggingface" ? "huggingface" : "heurística local"),
     checks: analysis.checks,
     observations: analysis.observations,
     transcript,
@@ -357,7 +363,11 @@ function trendBucket(date: Date, g: TrendGranularity): { key: string; ts: number
     case "hour": {
       const key = date.toISOString().slice(0, 13); // YYYY-MM-DDTHH (UTC)
       const d = new Date(key + ":00:00Z");
-      return { key, ts: d.getTime(), label: d.toLocaleString("pt-BR", { day: "2-digit", hour: "2-digit", hour12: false }) + "h" };
+      return {
+        key,
+        ts: d.getTime(),
+        label: d.toLocaleString("pt-BR", { day: "2-digit", hour: "2-digit", hour12: false }) + "h",
+      };
     }
     case "week": {
       // Segunda-feira da semana ISO da data.
@@ -365,18 +375,30 @@ function trendBucket(date: Date, g: TrendGranularity): { key: string; ts: number
       const weekday = d.getUTCDay() || 7;
       d.setUTCDate(d.getUTCDate() - weekday + 1);
       const key = d.toISOString().slice(0, 10);
-      return { key, ts: d.getTime(), label: "sem " + d.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" }) };
+      return {
+        key,
+        ts: d.getTime(),
+        label: "sem " + d.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" }),
+      };
     }
     case "month": {
       const key = date.toISOString().slice(0, 7); // YYYY-MM
       const d = new Date(key + "-01T00:00:00Z");
-      return { key, ts: d.getTime(), label: d.toLocaleDateString("pt-BR", { month: "short", year: "2-digit" }) };
+      return {
+        key,
+        ts: d.getTime(),
+        label: d.toLocaleDateString("pt-BR", { month: "short", year: "2-digit" }),
+      };
     }
     case "day":
     default: {
       const key = date.toISOString().slice(0, 10);
       const d = new Date(key + "T12:00:00");
-      return { key, ts: d.getTime(), label: d.toLocaleDateString("pt-BR", { weekday: "short", day: "2-digit" }) };
+      return {
+        key,
+        ts: d.getTime(),
+        label: d.toLocaleDateString("pt-BR", { weekday: "short", day: "2-digit" }),
+      };
     }
   }
 }
@@ -397,7 +419,9 @@ function computeTrend(calls: StoredCall[], g: TrendGranularity): TrendPoint[] {
     .map((e) => ({ day: e.label, compliance: avg(e.comp), quality: avg(e.qual) }));
 }
 
-export async function getDashboardData(granularity: TrendGranularity = "day"): Promise<DashboardData> {
+export async function getDashboardData(
+  granularity: TrendGranularity = "day",
+): Promise<DashboardData> {
   await ensureLoaded();
   const all = store;
   const now = Date.now();
@@ -465,22 +489,43 @@ export async function getDashboardData(granularity: TrendGranularity = "day"): P
   }
   const modelUsage: DashboardData["modelUsage"] = [];
   for (const [name, calls] of llmModels) {
-    modelUsage.push({ name, role: "Auditoria de compliance e qualidade (LLM)", calls, status: "active" });
+    modelUsage.push({
+      name,
+      role: "Auditoria de compliance e qualidade (LLM)",
+      calls,
+      status: "active",
+    });
   }
   if (audioCount > 0) {
-    modelUsage.push({ name: "Whisper large-v3", role: "Transcrição de áudio (ASR)", calls: audioCount, status: "active" });
+    modelUsage.push({
+      name: "Whisper large-v3",
+      role: "Transcrição de áudio (ASR)",
+      calls: audioCount,
+      status: "active",
+    });
   }
   if (heuristicCount > 0) {
-    modelUsage.push({ name: "Heurística local", role: "Fallback por palavras-chave (sem IA)", calls: heuristicCount, status: "idle" });
+    modelUsage.push({
+      name: "Heurística local",
+      role: "Fallback por palavras-chave (sem IA)",
+      calls: heuristicCount,
+      status: "idle",
+    });
   }
 
   return {
     totalCalls: all.length,
     kpis: {
       totalCalls: { value: all.length, delta: delta(last7.length, prev7.length) },
-      avgCompliance: { value: avg(all.map((c) => c.scoreCompliance)), delta: delta(compCur, compPrev) },
+      avgCompliance: {
+        value: avg(all.map((c) => c.scoreCompliance)),
+        delta: delta(compCur, compPrev),
+      },
       avgQuality: { value: avg(all.map((c) => c.scoreQuality)), delta: delta(qualCur, qualPrev) },
-      criticalAlerts: { value: all.filter((c) => c.status === "critical").length, delta: delta(critCur, critPrev) },
+      criticalAlerts: {
+        value: all.filter((c) => c.status === "critical").length,
+        delta: delta(critCur, critPrev),
+      },
       approvalRate: { value: rate(all, isApproved), delta: delta(approvalCur, approvalPrev) },
       positiveRate: { value: rate(all, isPositive), delta: delta(positiveCur, positivePrev) },
       activeAgents: { value: distinctAgents(all), delta: delta(agentsCur, agentsPrev) },

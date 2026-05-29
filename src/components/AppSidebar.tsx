@@ -1,8 +1,25 @@
 import { Link, useRouterState } from "@tanstack/react-router";
-import { LayoutDashboard, Phone, Bot, FileCheck, Settings, Headphones, Sparkles, Users } from "lucide-react";
 import {
-  Sidebar, SidebarContent, SidebarGroup, SidebarGroupContent, SidebarGroupLabel,
-  SidebarMenu, SidebarMenuButton, SidebarMenuItem, SidebarHeader, useSidebar,
+  LayoutDashboard,
+  Phone,
+  Bot,
+  FileCheck,
+  Settings,
+  Headphones,
+  Sparkles,
+  Users,
+} from "lucide-react";
+import {
+  Sidebar,
+  SidebarContent,
+  SidebarGroup,
+  SidebarGroupContent,
+  SidebarGroupLabel,
+  SidebarMenu,
+  SidebarMenuButton,
+  SidebarMenuItem,
+  SidebarHeader,
+  useSidebar,
 } from "@/components/ui/sidebar";
 import { VivoLogo } from "@/components/VivoLogo";
 
@@ -29,7 +46,9 @@ export function AppSidebar() {
           </div>
           {!collapsed && (
             <div className="flex flex-col gap-1">
-              <span className="font-display font-bold text-sidebar-foreground leading-none">VoiceAudit</span>
+              <span className="font-display font-bold text-sidebar-foreground leading-none">
+                VoiceAudit
+              </span>
               <span className="flex items-center gap-1 text-[10px] uppercase tracking-wider text-sidebar-foreground/60">
                 por <VivoLogo className="h-2.5 text-sidebar-foreground/80" /> · Compliance
               </span>

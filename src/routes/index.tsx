@@ -1,7 +1,16 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import {
-  Headphones, Sparkles, ShieldCheck, Bot, FileCheck, Phone, ArrowRight,
-  Gauge, Lock, Check, X,
+  Headphones,
+  Sparkles,
+  ShieldCheck,
+  Bot,
+  FileCheck,
+  Phone,
+  ArrowRight,
+  Gauge,
+  Lock,
+  Check,
+  X,
 } from "lucide-react";
 import { VivoLogo } from "@/components/VivoLogo";
 
@@ -9,25 +18,65 @@ export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
       { title: "VoiceAudit · Auditoria de Ligações com IA · Vivo" },
-      { name: "description", content: "Plataforma de compliance e qualidade de ligações com agentes de IA. Audite 100% das chamadas em tempo real." },
+      {
+        name: "description",
+        content:
+          "Plataforma de compliance e qualidade de ligações com agentes de IA. Audite 100% das chamadas em tempo real.",
+      },
     ],
   }),
   component: Landing,
 });
 
 const features = [
-  { icon: ShieldCheck, title: "Compliance regulatório", desc: "Verificação automática de identificação, aviso de gravação, consentimento LGPD e comunicação de custos em cada ligação." },
-  { icon: Sparkles, title: "Análise por IA", desc: "Os modelos Mangaba AI avaliam transcrições e geram scores de compliance, qualidade e sentimento." },
-  { icon: Gauge, title: "Score em tempo real", desc: "Dashboards com evolução semanal, distribuição por tema e alertas críticos atualizados ao vivo." },
-  { icon: Bot, title: "Agentes especializados", desc: "Os agentes Mangaba Compliance, Mangaba Qualidade e Mangaba Sentimento trabalham em paralelo em cada gravação." },
-  { icon: FileCheck, title: "Ficha de monitoria", desc: "Relatório detalhado por chamada com evidências, trechos relevantes e severidade das observações." },
-  { icon: Lock, title: "Privacidade por padrão", desc: "Tokens e dados sensíveis tratados no servidor — nada de segredos no navegador." },
+  {
+    icon: ShieldCheck,
+    title: "Compliance regulatório",
+    desc: "Verificação automática de identificação, aviso de gravação, consentimento LGPD e comunicação de custos em cada ligação.",
+  },
+  {
+    icon: Sparkles,
+    title: "Análise por IA",
+    desc: "Os modelos Mangaba AI avaliam transcrições e geram scores de compliance, qualidade e sentimento.",
+  },
+  {
+    icon: Gauge,
+    title: "Score em tempo real",
+    desc: "Dashboards com evolução semanal, distribuição por tema e alertas críticos atualizados ao vivo.",
+  },
+  {
+    icon: Bot,
+    title: "Agentes especializados",
+    desc: "Os agentes Mangaba Compliance, Mangaba Qualidade e Mangaba Sentimento trabalham em paralelo em cada gravação.",
+  },
+  {
+    icon: FileCheck,
+    title: "Ficha de monitoria",
+    desc: "Relatório detalhado por chamada com evidências, trechos relevantes e severidade das observações.",
+  },
+  {
+    icon: Lock,
+    title: "Privacidade por padrão",
+    desc: "Tokens e dados sensíveis tratados no servidor — nada de segredos no navegador.",
+  },
 ];
 
 const steps = [
-  { n: "01", title: "Capture a transcrição", desc: "Cole ou integre a transcrição da ligação na plataforma." },
-  { n: "02", title: "A IA audita", desc: "Os agentes avaliam a checklist regulatória e a qualidade do atendimento." },
-  { n: "03", title: "Decida com dados", desc: "Receba scores, observações e alertas para agir sobre cada atendimento." },
+  {
+    n: "01",
+    title: "Capture a transcrição",
+    desc: "Cole ou integre a transcrição da ligação na plataforma.",
+  },
+  {
+    n: "02",
+    title: "A IA audita",
+    desc: "Os agentes avaliam a checklist regulatória e a qualidade do atendimento.",
+  },
+  {
+    n: "03",
+    title: "Decida com dados",
+    desc: "Receba scores, observações e alertas para agir sobre cada atendimento.",
+  },
 ];
 
 const stats = [
@@ -55,9 +104,15 @@ function Landing() {
             </div>
           </div>
           <nav className="hidden items-center gap-6 text-sm text-muted-foreground md:flex">
-            <a href="#recursos" className="hover:text-foreground transition-colors">Recursos</a>
-            <a href="#como-funciona" className="hover:text-foreground transition-colors">Como funciona</a>
-            <Link to="/dashboard" className="hover:text-foreground transition-colors">Dashboard</Link>
+            <a href="#recursos" className="hover:text-foreground transition-colors">
+              Recursos
+            </a>
+            <a href="#como-funciona" className="hover:text-foreground transition-colors">
+              Como funciona
+            </a>
+            <Link to="/dashboard" className="hover:text-foreground transition-colors">
+              Dashboard
+            </Link>
           </nav>
           <Link
             to="/analyze"
@@ -76,16 +131,24 @@ function Landing() {
         <div className="relative mx-auto max-w-6xl px-4 py-24 text-center md:py-32">
           <div className="mx-auto mb-8 flex flex-col items-center gap-3">
             <VivoLogo className="h-16 w-auto text-white drop-shadow-[0_0_30px_rgba(255,255,255,0.35)] md:h-24" />
-            <span className="text-[11px] font-semibold uppercase tracking-[0.35em] text-white/60">Compliance &amp; Qualidade</span>
+            <span className="text-[11px] font-semibold uppercase tracking-[0.35em] text-white/60">
+              Compliance &amp; Qualidade
+            </span>
           </div>
           <div className="mx-auto mb-6 inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/5 px-4 py-1.5 text-xs font-medium text-white/80 backdrop-blur">
             <Sparkles className="h-3.5 w-3.5" /> Powered by Mangaba AI · LLMs de última geração
           </div>
           <h1 className="mx-auto max-w-3xl font-display text-4xl font-bold leading-tight text-white md:text-6xl">
-            Audite <span className="bg-gradient-to-r from-white to-primary-glow bg-clip-text text-transparent">100% das ligações</span> com inteligência artificial
+            Audite{" "}
+            <span className="bg-gradient-to-r from-white to-primary-glow bg-clip-text text-transparent">
+              100% das ligações
+            </span>{" "}
+            com inteligência artificial
           </h1>
           <p className="mx-auto mt-6 max-w-2xl text-base text-white/70 md:text-lg">
-            A plataforma de compliance e qualidade da Vivo que transforma cada chamada em insights acionáveis — scores regulatórios, qualidade do atendimento e sentimento do cliente, em segundos.
+            A plataforma de compliance e qualidade da Vivo que transforma cada chamada em insights
+            acionáveis — scores regulatórios, qualidade do atendimento e sentimento do cliente, em
+            segundos.
           </p>
           <div className="mt-9 flex flex-wrap items-center justify-center gap-3">
             <Link
@@ -109,8 +172,12 @@ function Landing() {
           <div className="mx-auto mt-16 grid max-w-3xl grid-cols-2 gap-px overflow-hidden rounded-xl border border-white/10 bg-white/10 sm:grid-cols-4">
             {stats.map((s) => (
               <div key={s.label} className="bg-[oklch(0.18_0.05_290)] px-4 py-6">
-                <div className="font-display text-2xl font-bold text-white md:text-3xl">{s.value}</div>
-                <div className="mt-1 text-[11px] uppercase tracking-wider text-white/50">{s.label}</div>
+                <div className="font-display text-2xl font-bold text-white md:text-3xl">
+                  {s.value}
+                </div>
+                <div className="mt-1 text-[11px] uppercase tracking-wider text-white/50">
+                  {s.label}
+                </div>
               </div>
             ))}
           </div>
@@ -120,13 +187,22 @@ function Landing() {
       {/* Features */}
       <section id="recursos" className="mx-auto max-w-6xl px-4 py-20">
         <div className="mx-auto max-w-2xl text-center">
-          <span className="text-xs font-semibold uppercase tracking-widest text-primary">Recursos</span>
-          <h2 className="mt-2 font-display text-3xl font-bold md:text-4xl">Tudo que sua operação precisa para auditar com confiança</h2>
-          <p className="mt-3 text-muted-foreground">Da captura à decisão, a IA cobre cada etapa do ciclo de monitoria.</p>
+          <span className="text-xs font-semibold uppercase tracking-widest text-primary">
+            Recursos
+          </span>
+          <h2 className="mt-2 font-display text-3xl font-bold md:text-4xl">
+            Tudo que sua operação precisa para auditar com confiança
+          </h2>
+          <p className="mt-3 text-muted-foreground">
+            Da captura à decisão, a IA cobre cada etapa do ciclo de monitoria.
+          </p>
         </div>
         <div className="mt-12 grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
           {features.map((f) => (
-            <div key={f.title} className="group rounded-xl border border-border/60 bg-card p-6 transition-shadow hover:shadow-[var(--shadow-elegant)]">
+            <div
+              key={f.title}
+              className="group rounded-xl border border-border/60 bg-card p-6 transition-shadow hover:shadow-[var(--shadow-elegant)]"
+            >
               <div className="mb-4 inline-flex h-11 w-11 items-center justify-center rounded-lg bg-[image:var(--gradient-primary)] text-primary-foreground shadow-[var(--shadow-glow)]">
                 <f.icon className="h-5 w-5" />
               </div>
@@ -141,8 +217,12 @@ function Landing() {
       <section id="como-funciona" className="border-y border-border/60 bg-secondary/40">
         <div className="mx-auto max-w-6xl px-4 py-20">
           <div className="mx-auto max-w-2xl text-center">
-            <span className="text-xs font-semibold uppercase tracking-widest text-primary">Como funciona</span>
-            <h2 className="mt-2 font-display text-3xl font-bold md:text-4xl">Três passos para uma auditoria completa</h2>
+            <span className="text-xs font-semibold uppercase tracking-widest text-primary">
+              Como funciona
+            </span>
+            <h2 className="mt-2 font-display text-3xl font-bold md:text-4xl">
+              Três passos para uma auditoria completa
+            </h2>
           </div>
           <div className="mt-12 grid grid-cols-1 gap-6 md:grid-cols-3">
             {steps.map((s) => (
@@ -160,10 +240,15 @@ function Landing() {
       <section className="mx-auto max-w-6xl px-4 py-20">
         <div className="grid items-center gap-10 lg:grid-cols-2">
           <div>
-            <span className="text-xs font-semibold uppercase tracking-widest text-primary">Análise de IA</span>
-            <h2 className="mt-2 font-display text-3xl font-bold md:text-4xl">Compliance avaliado por modelos de linguagem</h2>
+            <span className="text-xs font-semibold uppercase tracking-widest text-primary">
+              Análise de IA
+            </span>
+            <h2 className="mt-2 font-display text-3xl font-bold md:text-4xl">
+              Compliance avaliado por modelos de linguagem
+            </h2>
             <p className="mt-4 text-muted-foreground">
-              Cole a transcrição de uma ligação e receba, em segundos, uma ficha de monitoria completa gerada pela Mangaba AI.
+              Cole a transcrição de uma ligação e receba, em segundos, uma ficha de monitoria
+              completa gerada pela Mangaba AI.
             </p>
             <ul className="mt-6 space-y-3">
               {[
@@ -192,16 +277,26 @@ function Landing() {
               <div className="flex items-center gap-2 text-sm font-semibold">
                 <Bot className="h-4 w-4 text-primary" /> Resultado da análise
               </div>
-              <span className="rounded-full border border-warning/40 bg-warning/20 px-2.5 py-0.5 text-xs font-medium text-warning-foreground">Atenção</span>
+              <span className="rounded-full border border-warning/40 bg-warning/20 px-2.5 py-0.5 text-xs font-medium text-warning-foreground">
+                Atenção
+              </span>
             </div>
             <div className="mt-4 grid grid-cols-2 gap-3">
               <div className="rounded-lg border border-border/60 p-4 text-center">
-                <div className="text-[10px] uppercase tracking-wider text-muted-foreground">Compliance</div>
-                <div className="mt-1 font-display text-4xl font-bold text-warning-foreground">71%</div>
+                <div className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                  Compliance
+                </div>
+                <div className="mt-1 font-display text-4xl font-bold text-warning-foreground">
+                  71%
+                </div>
               </div>
               <div className="rounded-lg border border-border/60 p-4 text-center">
-                <div className="text-[10px] uppercase tracking-wider text-muted-foreground">Qualidade</div>
-                <div className="mt-1 font-display text-4xl font-bold text-warning-foreground">68%</div>
+                <div className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                  Qualidade
+                </div>
+                <div className="mt-1 font-display text-4xl font-bold text-warning-foreground">
+                  68%
+                </div>
               </div>
             </div>
             <div className="mt-4 space-y-2 text-sm">
@@ -211,9 +306,16 @@ function Landing() {
                 { label: "Consentimento LGPD", ok: false },
                 { label: "Resumo final e protocolo", ok: true },
               ].map((c) => (
-                <div key={c.label} className="flex items-center justify-between rounded-lg border border-border/50 px-3 py-2">
+                <div
+                  key={c.label}
+                  className="flex items-center justify-between rounded-lg border border-border/50 px-3 py-2"
+                >
                   <span>{c.label}</span>
-                  {c.ok ? <Check className="h-4 w-4 text-success" /> : <X className="h-4 w-4 text-destructive" />}
+                  {c.ok ? (
+                    <Check className="h-4 w-4 text-success" />
+                  ) : (
+                    <X className="h-4 w-4 text-destructive" />
+                  )}
                 </div>
               ))}
             </div>
@@ -232,10 +334,16 @@ function Landing() {
             Comece agora analisando uma ligação ou explore o painel de monitoria completo.
           </p>
           <div className="relative mt-8 flex flex-wrap items-center justify-center gap-3">
-            <Link to="/analyze" className="inline-flex items-center gap-2 rounded-md bg-white px-6 py-3 text-sm font-semibold text-primary shadow-lg transition-transform hover:scale-[1.03]">
+            <Link
+              to="/analyze"
+              className="inline-flex items-center gap-2 rounded-md bg-white px-6 py-3 text-sm font-semibold text-primary shadow-lg transition-transform hover:scale-[1.03]"
+            >
               <Sparkles className="h-4 w-4" /> Analisar ligação
             </Link>
-            <Link to="/dashboard" className="inline-flex items-center gap-2 rounded-md border border-white/40 px-6 py-3 text-sm font-semibold text-primary-foreground transition-colors hover:bg-white/10">
+            <Link
+              to="/dashboard"
+              className="inline-flex items-center gap-2 rounded-md border border-white/40 px-6 py-3 text-sm font-semibold text-primary-foreground transition-colors hover:bg-white/10"
+            >
               <Phone className="h-4 w-4" /> Abrir dashboard
             </Link>
           </div>
@@ -250,7 +358,9 @@ function Landing() {
               <Headphones className="h-4 w-4 text-primary-foreground" />
             </div>
             <span className="font-display font-semibold text-foreground">VoiceAudit</span>
-            <span className="flex items-center gap-1">· uma solução <VivoLogo className="h-3 text-primary" /></span>
+            <span className="flex items-center gap-1">
+              · uma solução <VivoLogo className="h-3 text-primary" />
+            </span>
           </div>
           <p>Demonstração · dados fictícios para fins de avaliação.</p>
         </div>

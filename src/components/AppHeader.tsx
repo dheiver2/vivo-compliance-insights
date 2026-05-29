@@ -4,8 +4,12 @@ import { useQuery } from "@tanstack/react-query";
 import { Bell, Search, Settings, AlertTriangle, CheckCircle2 } from "lucide-react";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import {
-  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel,
-  DropdownMenuSeparator, DropdownMenuTrigger,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { getDashboard } from "@/lib/api/calls.functions";
 import type { DashboardData, StoredCall } from "@/lib/server/calls-store.server";
@@ -62,7 +66,9 @@ export function AppHeader() {
           <DropdownMenuContent align="end" className="w-80">
             <DropdownMenuLabel className="flex items-center justify-between">
               <span>Alertas de compliance</span>
-              {critical.length > 0 && <span className="text-xs text-destructive">{critical.length} crítico(s)</span>}
+              {critical.length > 0 && (
+                <span className="text-xs text-destructive">{critical.length} crítico(s)</span>
+              )}
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
             {critical.length === 0 ? (
@@ -73,11 +79,17 @@ export function AppHeader() {
             ) : (
               critical.slice(0, 6).map((c) => (
                 <DropdownMenuItem key={c.id} asChild>
-                  <Link to="/calls/$callId" params={{ callId: c.id }} className="flex items-start gap-2">
+                  <Link
+                    to="/calls/$callId"
+                    params={{ callId: c.id }}
+                    className="flex items-start gap-2"
+                  >
                     <AlertTriangle className="h-4 w-4 text-destructive mt-0.5 flex-shrink-0" />
                     <span className="min-w-0">
                       <span className="block truncate font-medium">{c.label}</span>
-                      <span className="block text-xs text-muted-foreground">{c.protocol} · compliance {c.scoreCompliance}%</span>
+                      <span className="block text-xs text-muted-foreground">
+                        {c.protocol} · compliance {c.scoreCompliance}%
+                      </span>
                     </span>
                   </Link>
                 </DropdownMenuItem>
@@ -88,8 +100,13 @@ export function AppHeader() {
 
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <button className="flex items-center gap-2 rounded-md p-1 hover:bg-muted" aria-label="Conta">
-              <div className="h-8 w-8 rounded-full bg-[image:var(--gradient-primary)] flex items-center justify-center text-xs font-semibold text-primary-foreground">SR</div>
+            <button
+              className="flex items-center gap-2 rounded-md p-1 hover:bg-muted"
+              aria-label="Conta"
+            >
+              <div className="h-8 w-8 rounded-full bg-[image:var(--gradient-primary)] flex items-center justify-center text-xs font-semibold text-primary-foreground">
+                SR
+              </div>
               <div className="text-xs leading-tight hidden sm:block text-left">
                 <div className="font-semibold">Supervisor RH</div>
                 <div className="text-muted-foreground">Vivo · São Paulo</div>

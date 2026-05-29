@@ -7,25 +7,70 @@ import { StatusBadge } from "@/components/StatusBadge";
 import { getDashboard } from "@/lib/api/calls.functions";
 import { mangabaModelName } from "@/lib/mangaba";
 import type { DashboardData, TrendGranularity } from "@/lib/server/calls-store.server";
-import { TrendingUp, TrendingDown, Phone, ShieldCheck, Sparkles, AlertTriangle, Bot, Loader2, CheckCircle2, Smile, Users, Cpu } from "lucide-react";
 import {
-  LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
-  PieChart, Pie, Cell, Legend,
+  TrendingUp,
+  TrendingDown,
+  Phone,
+  ShieldCheck,
+  Sparkles,
+  AlertTriangle,
+  Bot,
+  Loader2,
+  CheckCircle2,
+  Smile,
+  Users,
+  Cpu,
+} from "lucide-react";
+import {
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+  PieChart,
+  Pie,
+  Cell,
+  Legend,
 } from "recharts";
 
 export const Route = createFileRoute("/dashboard")({
   head: () => ({
     meta: [
       { title: "Dashboard · VoiceAudit Vivo" },
-      { name: "description", content: "Visão geral de compliance e qualidade de ligações da Vivo." },
+      {
+        name: "description",
+        content: "Visão geral de compliance e qualidade de ligações da Vivo.",
+      },
     ],
   }),
   component: Dashboard,
 });
 
-const PIE_COLORS = ["oklch(0.42 0.22 310)", "oklch(0.55 0.25 315)", "oklch(0.62 0.16 155)", "oklch(0.78 0.16 75)", "oklch(0.6 0.22 25)", "oklch(0.5 0.1 250)", "oklch(0.7 0.12 200)"];
+const PIE_COLORS = [
+  "oklch(0.42 0.22 310)",
+  "oklch(0.55 0.25 315)",
+  "oklch(0.62 0.16 155)",
+  "oklch(0.78 0.16 75)",
+  "oklch(0.6 0.22 25)",
+  "oklch(0.5 0.1 250)",
+  "oklch(0.7 0.12 200)",
+];
 
-function KpiCard({ icon: Icon, label, value, delta, suffix }: { icon: typeof Phone; label: string; value: string | number; delta: number | null; suffix?: string }) {
+function KpiCard({
+  icon: Icon,
+  label,
+  value,
+  delta,
+  suffix,
+}: {
+  icon: typeof Phone;
+  label: string;
+  value: string | number;
+  delta: number | null;
+  suffix?: string;
+}) {
   const positive = (delta ?? 0) >= 0;
   return (
     <Card className="relative overflow-hidden border-border/60">
@@ -35,14 +80,22 @@ function KpiCard({ icon: Icon, label, value, delta, suffix }: { icon: typeof Pho
           <div>
             <p className="text-xs uppercase tracking-wider text-muted-foreground">{label}</p>
             <p className="mt-2 text-3xl font-display font-bold text-foreground">
-              {value}{suffix}
+              {value}
+              {suffix}
             </p>
             {delta === null ? (
               <div className="mt-2 text-xs text-muted-foreground">sem base comparativa</div>
             ) : (
-              <div className={`mt-2 inline-flex items-center gap-1 text-xs font-medium ${positive ? "text-success" : "text-destructive"}`}>
-                {positive ? <TrendingUp className="h-3 w-3" /> : <TrendingDown className="h-3 w-3" />}
-                {positive ? "+" : ""}{delta}% vs 7 dias anteriores
+              <div
+                className={`mt-2 inline-flex items-center gap-1 text-xs font-medium ${positive ? "text-success" : "text-destructive"}`}
+              >
+                {positive ? (
+                  <TrendingUp className="h-3 w-3" />
+                ) : (
+                  <TrendingDown className="h-3 w-3" />
+                )}
+                {positive ? "+" : ""}
+                {delta}% vs 7 dias anteriores
               </div>
             )}
           </div>
@@ -62,10 +115,13 @@ function EmptyState() {
         <Sparkles className="h-12 w-12 mb-4 opacity-40" />
         <p className="text-base font-medium text-foreground">Nenhuma ligação analisada ainda</p>
         <p className="text-sm mt-1 max-w-md">
-          Os indicadores deste painel são calculados a partir das análises reais.
-          Comece enviando áudios ou uma transcrição na Análise IA.
+          Os indicadores deste painel são calculados a partir das análises reais. Comece enviando
+          áudios ou uma transcrição na Análise IA.
         </p>
-        <Link to="/analyze" className="mt-6 inline-flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90">
+        <Link
+          to="/analyze"
+          className="mt-6 inline-flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90"
+        >
           <Sparkles className="h-4 w-4" /> Ir para Análise IA
         </Link>
       </CardContent>
@@ -77,9 +133,18 @@ function scoreCls(s: number) {
   return s >= 85 ? "text-success" : s >= 70 ? "text-warning-foreground" : "text-destructive";
 }
 
-const sentimentLabel: Record<string, string> = { positivo: "Positivo", neutro: "Neutro", negativo: "Negativo" };
+const sentimentLabel: Record<string, string> = {
+  positivo: "Positivo",
+  neutro: "Neutro",
+  negativo: "Negativo",
+};
 
-const GRANULARITY_OPTIONS: { value: TrendGranularity; label: string; word: string; unit: string }[] = [
+const GRANULARITY_OPTIONS: {
+  value: TrendGranularity;
+  label: string;
+  word: string;
+  unit: string;
+}[] = [
   { value: "hour", label: "Hora", word: "hora", unit: "horas" },
   { value: "day", label: "Dia", word: "dia", unit: "dias" },
   { value: "week", label: "Semana", word: "semana", unit: "semanas" },
@@ -122,14 +187,59 @@ function Dashboard() {
       {data && data.totalCalls > 0 && (
         <>
           <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            <KpiCard icon={Phone} label="Ligações auditadas" value={data.kpis.totalCalls.value.toLocaleString("pt-BR")} delta={data.kpis.totalCalls.delta} />
-            <KpiCard icon={ShieldCheck} label="Compliance médio" value={data.kpis.avgCompliance.value} delta={data.kpis.avgCompliance.delta} suffix="%" />
-            <KpiCard icon={Sparkles} label="Qualidade média" value={data.kpis.avgQuality.value} delta={data.kpis.avgQuality.delta} suffix="%" />
-            <KpiCard icon={AlertTriangle} label="Alertas críticos" value={data.kpis.criticalAlerts.value} delta={data.kpis.criticalAlerts.delta} />
-            <KpiCard icon={CheckCircle2} label="Taxa de aprovação" value={data.kpis.approvalRate.value} delta={data.kpis.approvalRate.delta} suffix="%" />
-            <KpiCard icon={Smile} label="Sentimento positivo" value={data.kpis.positiveRate.value} delta={data.kpis.positiveRate.delta} suffix="%" />
-            <KpiCard icon={Users} label="Atendentes monitorados" value={data.kpis.activeAgents.value} delta={data.kpis.activeAgents.delta} />
-            <KpiCard icon={Cpu} label="Cobertura Mangaba AI" value={data.kpis.aiCoverage.value} delta={data.kpis.aiCoverage.delta} suffix="%" />
+            <KpiCard
+              icon={Phone}
+              label="Ligações auditadas"
+              value={data.kpis.totalCalls.value.toLocaleString("pt-BR")}
+              delta={data.kpis.totalCalls.delta}
+            />
+            <KpiCard
+              icon={ShieldCheck}
+              label="Compliance médio"
+              value={data.kpis.avgCompliance.value}
+              delta={data.kpis.avgCompliance.delta}
+              suffix="%"
+            />
+            <KpiCard
+              icon={Sparkles}
+              label="Qualidade média"
+              value={data.kpis.avgQuality.value}
+              delta={data.kpis.avgQuality.delta}
+              suffix="%"
+            />
+            <KpiCard
+              icon={AlertTriangle}
+              label="Alertas críticos"
+              value={data.kpis.criticalAlerts.value}
+              delta={data.kpis.criticalAlerts.delta}
+            />
+            <KpiCard
+              icon={CheckCircle2}
+              label="Taxa de aprovação"
+              value={data.kpis.approvalRate.value}
+              delta={data.kpis.approvalRate.delta}
+              suffix="%"
+            />
+            <KpiCard
+              icon={Smile}
+              label="Sentimento positivo"
+              value={data.kpis.positiveRate.value}
+              delta={data.kpis.positiveRate.delta}
+              suffix="%"
+            />
+            <KpiCard
+              icon={Users}
+              label="Atendentes monitorados"
+              value={data.kpis.activeAgents.value}
+              delta={data.kpis.activeAgents.delta}
+            />
+            <KpiCard
+              icon={Cpu}
+              label="Cobertura Mangaba AI"
+              value={data.kpis.aiCoverage.value}
+              delta={data.kpis.aiCoverage.delta}
+              suffix="%"
+            />
           </section>
 
           <section className="grid grid-cols-1 lg:grid-cols-3 gap-4">
@@ -138,7 +248,9 @@ function Dashboard() {
                 <div className="flex items-start justify-between gap-4 flex-wrap">
                   <div>
                     <CardTitle>Evolução por {gMeta.word}</CardTitle>
-                    <CardDescription>Score médio de compliance e qualidade por {gMeta.word}</CardDescription>
+                    <CardDescription>
+                      Score médio de compliance e qualidade por {gMeta.word}
+                    </CardDescription>
                   </div>
                   <div className="inline-flex rounded-lg border border-border/60 p-0.5 bg-secondary/40">
                     {GRANULARITY_OPTIONS.map((o) => (
@@ -162,7 +274,8 @@ function Dashboard() {
               <CardContent>
                 {data.dailyTrend.length < 2 ? (
                   <div className="flex items-center justify-center h-[280px] text-sm text-muted-foreground text-center px-6">
-                    Tendência aparece quando houver análises em pelo menos 2 {gMeta.unit} diferentes.
+                    Tendência aparece quando houver análises em pelo menos 2 {gMeta.unit}{" "}
+                    diferentes.
                   </div>
                 ) : (
                   <ResponsiveContainer width="100%" height={280}>
@@ -176,9 +289,30 @@ function Dashboard() {
                       <CartesianGrid strokeDasharray="3 3" stroke="oklch(0.92 0.01 300)" />
                       <XAxis dataKey="day" stroke="oklch(0.5 0.03 290)" fontSize={12} />
                       <YAxis domain={[0, 100]} stroke="oklch(0.5 0.03 290)" fontSize={12} />
-                      <Tooltip contentStyle={{ borderRadius: 8, border: "1px solid oklch(0.92 0.01 300)", fontSize: 12 }} />
-                      <Line type="monotone" dataKey="compliance" stroke="url(#g1)" strokeWidth={3} dot={{ r: 4 }} name="Compliance" />
-                      <Line type="monotone" dataKey="quality" stroke="oklch(0.62 0.16 155)" strokeWidth={2} strokeDasharray="5 5" dot={{ r: 3 }} name="Qualidade" />
+                      <Tooltip
+                        contentStyle={{
+                          borderRadius: 8,
+                          border: "1px solid oklch(0.92 0.01 300)",
+                          fontSize: 12,
+                        }}
+                      />
+                      <Line
+                        type="monotone"
+                        dataKey="compliance"
+                        stroke="url(#g1)"
+                        strokeWidth={3}
+                        dot={{ r: 4 }}
+                        name="Compliance"
+                      />
+                      <Line
+                        type="monotone"
+                        dataKey="quality"
+                        stroke="oklch(0.62 0.16 155)"
+                        strokeWidth={2}
+                        strokeDasharray="5 5"
+                        dot={{ r: 3 }}
+                        name="Qualidade"
+                      />
                     </LineChart>
                   </ResponsiveContainer>
                 )}
@@ -193,10 +327,27 @@ function Dashboard() {
               <CardContent>
                 <ResponsiveContainer width="100%" height={280}>
                   <PieChart>
-                    <Pie data={data.topicDistribution} dataKey="value" nameKey="name" cx="50%" cy="50%" innerRadius={50} outerRadius={90} paddingAngle={2}>
-                      {data.topicDistribution.map((_, i) => <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />)}
+                    <Pie
+                      data={data.topicDistribution}
+                      dataKey="value"
+                      nameKey="name"
+                      cx="50%"
+                      cy="50%"
+                      innerRadius={50}
+                      outerRadius={90}
+                      paddingAngle={2}
+                    >
+                      {data.topicDistribution.map((_, i) => (
+                        <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />
+                      ))}
                     </Pie>
-                    <Tooltip contentStyle={{ borderRadius: 8, border: "1px solid oklch(0.92 0.01 300)", fontSize: 12 }} />
+                    <Tooltip
+                      contentStyle={{
+                        borderRadius: 8,
+                        border: "1px solid oklch(0.92 0.01 300)",
+                        fontSize: 12,
+                      }}
+                    />
                     <Legend wrapperStyle={{ fontSize: 11 }} />
                   </PieChart>
                 </ResponsiveContainer>
@@ -208,7 +359,9 @@ function Dashboard() {
             <Card>
               <CardHeader>
                 <CardTitle>Ficha de Monitoria — Itens auditados</CardTitle>
-                <CardDescription>Aderência média por item de compliance (todas as análises)</CardDescription>
+                <CardDescription>
+                  Aderência média por item de compliance (todas as análises)
+                </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
                 {data.complianceItems.map((item) => (
@@ -225,13 +378,18 @@ function Dashboard() {
 
             <Card>
               <CardHeader>
-                <CardTitle className="flex items-center gap-2"><Bot className="h-4 w-4 text-primary" /> Componentes de IA em uso</CardTitle>
+                <CardTitle className="flex items-center gap-2">
+                  <Bot className="h-4 w-4 text-primary" /> Componentes de IA em uso
+                </CardTitle>
                 <CardDescription>Pipeline real que processou as análises</CardDescription>
               </CardHeader>
               <CardContent>
                 <div className="space-y-3">
                   {data.modelUsage.map((a) => (
-                    <div key={a.name} className="flex items-center justify-between rounded-lg border border-border/60 bg-secondary/40 p-3">
+                    <div
+                      key={a.name}
+                      className="flex items-center justify-between rounded-lg border border-border/60 bg-secondary/40 p-3"
+                    >
                       <div className="flex items-center gap-3">
                         <div className="h-10 w-10 rounded-lg bg-[image:var(--gradient-primary)] flex items-center justify-center shadow-[var(--shadow-glow)]">
                           <Bot className="h-5 w-5 text-primary-foreground" />
@@ -239,13 +397,19 @@ function Dashboard() {
                         <div>
                           <div className="font-semibold text-sm flex items-center gap-2">
                             {mangabaModelName(a.name)}
-                            {a.status === "idle" && <span className="text-[10px] uppercase rounded bg-warning/30 px-1.5 py-0.5 text-warning-foreground">fallback</span>}
+                            {a.status === "idle" && (
+                              <span className="text-[10px] uppercase rounded bg-warning/30 px-1.5 py-0.5 text-warning-foreground">
+                                fallback
+                              </span>
+                            )}
                           </div>
                           <div className="text-xs text-muted-foreground">{a.role}</div>
                         </div>
                       </div>
                       <div className="text-right">
-                        <div className="text-sm font-semibold">{a.calls.toLocaleString("pt-BR")}</div>
+                        <div className="text-sm font-semibold">
+                          {a.calls.toLocaleString("pt-BR")}
+                        </div>
                         <div className="text-[11px] text-muted-foreground">análises</div>
                       </div>
                     </div>
@@ -276,18 +440,31 @@ function Dashboard() {
                 </thead>
                 <tbody>
                   {data.recentCalls.map((c) => (
-                    <tr key={c.id} className="border-b border-border/50 hover:bg-secondary/40 transition-colors">
+                    <tr
+                      key={c.id}
+                      className="border-b border-border/50 hover:bg-secondary/40 transition-colors"
+                    >
                       <td className="py-3 px-2 font-mono text-xs text-primary">{c.protocol}</td>
-                      <td className="py-3 px-2 text-muted-foreground text-xs">{new Date(c.createdAt).toLocaleString("pt-BR")}</td>
+                      <td className="py-3 px-2 text-muted-foreground text-xs">
+                        {new Date(c.createdAt).toLocaleString("pt-BR")}
+                      </td>
                       <td className="py-3 px-2">
                         <span className="text-xs">{c.origin === "audio" ? "Áudio" : "Texto"}</span>
-                        <span className="block text-[11px] text-muted-foreground truncate max-w-[160px]">{c.label}</span>
+                        <span className="block text-[11px] text-muted-foreground truncate max-w-[160px]">
+                          {c.label}
+                        </span>
                       </td>
                       <td className="py-3 px-2">{c.topic}</td>
-                      <td className={`py-3 px-2 font-semibold ${scoreCls(c.scoreCompliance)}`}>{c.scoreCompliance}%</td>
-                      <td className={`py-3 px-2 font-semibold ${scoreCls(c.scoreQuality)}`}>{c.scoreQuality}%</td>
+                      <td className={`py-3 px-2 font-semibold ${scoreCls(c.scoreCompliance)}`}>
+                        {c.scoreCompliance}%
+                      </td>
+                      <td className={`py-3 px-2 font-semibold ${scoreCls(c.scoreQuality)}`}>
+                        {c.scoreQuality}%
+                      </td>
                       <td className="py-3 px-2 text-xs">{sentimentLabel[c.sentiment]}</td>
-                      <td className="py-3 px-2"><StatusBadge status={c.status} /></td>
+                      <td className="py-3 px-2">
+                        <StatusBadge status={c.status} />
+                      </td>
                     </tr>
                   ))}
                 </tbody>

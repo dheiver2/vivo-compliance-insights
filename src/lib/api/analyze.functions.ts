@@ -10,10 +10,7 @@ import {
 } from "../compliance";
 import { redactText } from "../pii";
 import { recordAnalysis } from "../server/calls-store.server";
-import {
-  getActiveCriteria,
-  type MonitoringCriterion,
-} from "../server/monitoring-form.server";
+import { getActiveCriteria, type MonitoringCriterion } from "../server/monitoring-form.server";
 
 // HuggingFace Inference Providers expose an OpenAI-compatible chat endpoint.
 const HF_ROUTER_URL = "https://router.huggingface.co/v1/chat/completions";
@@ -39,7 +36,10 @@ const LLM_MAX_TOKENS = 700; // schema compacto cabe com folga
 // configurou.
 function buildSystemPrompt(criteria: MonitoringCriterion[]): string {
   const items = criteria
-    .map((c, i) => `${i + 1}. ${c.label}${c.critical ? " [CRÍTICO]" : ""}${c.description ? ` — ${c.description}` : ""}`)
+    .map(
+      (c, i) =>
+        `${i + 1}. ${c.label}${c.critical ? " [CRÍTICO]" : ""}${c.description ? ` — ${c.description}` : ""}`,
+    )
     .join("\n");
   // Prompt enxuto + schema de chaves curtas reduzem tokens de entrada e saída.
   // "e" (evidência) só é pedido para itens reprovados.
@@ -173,14 +173,38 @@ async function analyzeWithHuggingFace(
 // Regras de palavra-chave por rótulo CANÔNICO da ficha padrão. Critérios
 // personalizados (sem regra) recebem uma verificação neutra no modo local.
 const HEURISTIC_RULES: Record<string, { terms: string[]; evidence: string }> = {
-  "Identificação do atendente": { terms: ["aqui é", "meu nome", "falo com", "atendente"], evidence: "Procura por apresentação do atendente." },
-  "Gravação informada ao cliente": { terms: ["gravada", "gravação", "está sendo gravad"], evidence: "Procura por aviso de gravação." },
-  "Confirmação de dados cadastrais": { terms: ["cpf", "confirma seu", "data de nascimento", "dados cadastrais"], evidence: "Procura por confirmação cadastral." },
-  "Consentimento LGPD para uso de dados": { terms: ["lgpd", "consentimento", "uso dos seus dados", "autoriza"], evidence: "Procura por consentimento LGPD." },
-  "Oferta clara de produto/serviço": { terms: ["plano", "oferta", "produto", "serviço", "r$"], evidence: "Procura por oferta clara." },
-  "Comunicação de prazos e custos": { terms: ["prazo", "multa", "custo", "valor", "r$", "48 horas"], evidence: "Procura por prazos e custos." },
-  "Resumo final e número de protocolo": { terms: ["protocolo", "resumo", "vv-"], evidence: "Procura por protocolo/resumo final." },
-  "Encerramento cordial": { terms: ["bom dia", "boa tarde", "tenha um", "obrigad", "mais alguma coisa"], evidence: "Procura por encerramento cordial." },
+  "Identificação do atendente": {
+    terms: ["aqui é", "meu nome", "falo com", "atendente"],
+    evidence: "Procura por apresentação do atendente.",
+  },
+  "Gravação informada ao cliente": {
+    terms: ["gravada", "gravação", "está sendo gravad"],
+    evidence: "Procura por aviso de gravação.",
+  },
+  "Confirmação de dados cadastrais": {
+    terms: ["cpf", "confirma seu", "data de nascimento", "dados cadastrais"],
+    evidence: "Procura por confirmação cadastral.",
+  },
+  "Consentimento LGPD para uso de dados": {
+    terms: ["lgpd", "consentimento", "uso dos seus dados", "autoriza"],
+    evidence: "Procura por consentimento LGPD.",
+  },
+  "Oferta clara de produto/serviço": {
+    terms: ["plano", "oferta", "produto", "serviço", "r$"],
+    evidence: "Procura por oferta clara.",
+  },
+  "Comunicação de prazos e custos": {
+    terms: ["prazo", "multa", "custo", "valor", "r$", "48 horas"],
+    evidence: "Procura por prazos e custos.",
+  },
+  "Resumo final e número de protocolo": {
+    terms: ["protocolo", "resumo", "vv-"],
+    evidence: "Procura por protocolo/resumo final.",
+  },
+  "Encerramento cordial": {
+    terms: ["bom dia", "boa tarde", "tenha um", "obrigad", "mais alguma coisa"],
+    evidence: "Procura por encerramento cordial.",
+  },
 };
 
 // Fallback determinístico por palavras-chave: mantém o MVP funcional sem token.
@@ -193,7 +217,12 @@ function analyzeHeuristic(transcript: string, criteria: MonitoringCriterion[]): 
     const rule = HEURISTIC_RULES[c.label];
     if (!rule) {
       // Critério personalizado: sem regra automática local.
-      return { label: c.label, passed: true, score: 60, evidence: "Critério personalizado — avaliação detalhada requer a Mangaba AI." };
+      return {
+        label: c.label,
+        passed: true,
+        score: 60,
+        evidence: "Critério personalizado — avaliação detalhada requer a Mangaba AI.",
+      };
     }
     const passed = has(...rule.terms);
     return { label: c.label, passed, score: passed ? 90 : 35, evidence: rule.evidence };
@@ -203,11 +232,20 @@ function analyzeHeuristic(transcript: string, criteria: MonitoringCriterion[]): 
     checks.length ? checks.reduce((acc, c) => acc + c.score, 0) / checks.length : 0,
   );
 
-  const negativeMarkers = ["absurd", "irritad", "reclam", "péssim", "horrível", "cancelar", "raiva"];
+  const negativeMarkers = [
+    "absurd",
+    "irritad",
+    "reclam",
+    "péssim",
+    "horrível",
+    "cancelar",
+    "raiva",
+  ];
   const positiveMarkers = ["obrigado", "ótimo", "perfeito", "resolvido", "satisfeit"];
   const negHits = negativeMarkers.filter((m) => t.includes(m)).length;
   const posHits = positiveMarkers.filter((m) => t.includes(m)).length;
-  const sentiment: Sentiment = negHits > posHits ? "negativo" : posHits > negHits ? "positivo" : "neutro";
+  const sentiment: Sentiment =
+    negHits > posHits ? "negativo" : posHits > negHits ? "positivo" : "neutro";
 
   const scoreQuality = clampScore(scoreCompliance - negHits * 8 + posHits * 5);
 
@@ -227,7 +265,12 @@ function analyzeHeuristic(transcript: string, criteria: MonitoringCriterion[]): 
     }
   }
   if (sentiment === "negativo") {
-    observations.push({ agent: "Mangaba Sentimento", time: "—", note: "Sinais de insatisfação do cliente detectados na transcrição.", severity: "warning" });
+    observations.push({
+      agent: "Mangaba Sentimento",
+      time: "—",
+      note: "Sinais de insatisfação do cliente detectados na transcrição.",
+      severity: "warning",
+    });
   }
 
   return {
@@ -345,7 +388,12 @@ async function analyzeHybrid(
   const checks: ComplianceCheck[] = criteria.map(
     (c) =>
       preResolved.get(c.label) ??
-      llmByLabel.get(c.label) ?? { label: c.label, passed: false, score: 0, evidence: "Não avaliado." },
+      llmByLabel.get(c.label) ?? {
+        label: c.label,
+        passed: false,
+        score: 0,
+        evidence: "Não avaliado.",
+      },
   );
 
   const scoreCompliance = weightedCompliance(checks, criteria);
@@ -589,7 +637,12 @@ const AnalyzeAudioInput = z.object({
   agentName: z.string().optional(),
 });
 
-export type AudioAnalysis = CallAnalysis & { transcript: string; filename: string; id: string; protocol: string };
+export type AudioAnalysis = CallAnalysis & {
+  transcript: string;
+  filename: string;
+  id: string;
+  protocol: string;
+};
 
 // ---------------------------------------------------------------------------
 // Ingestão via API de mercado (telefonia/contact center).
@@ -727,7 +780,13 @@ export const analyzeCallFromUrl = createServerFn({ method: "POST" })
       agentName: data.agentName,
     });
 
-    return { ...analysis, transcript: auditSummary, label, id: stored.id, protocol: stored.protocol };
+    return {
+      ...analysis,
+      transcript: auditSummary,
+      label,
+      id: stored.id,
+      protocol: stored.protocol,
+    };
   });
 
 export const analyzeAudio = createServerFn({ method: "POST" })
@@ -735,9 +794,7 @@ export const analyzeAudio = createServerFn({ method: "POST" })
   .handler(async ({ data }): Promise<AudioAnalysis> => {
     const token = process.env.HF_TOKEN;
     if (!token) {
-      throw new Error(
-        "Transcrição de áudio requer a Mangaba AI ativa no servidor.",
-      );
+      throw new Error("Transcrição de áudio requer a Mangaba AI ativa no servidor.");
     }
 
     const bytes = base64ToBytes(data.base64);
@@ -753,12 +810,7 @@ export const analyzeAudio = createServerFn({ method: "POST" })
     }
 
     const asrModel = process.env.HF_ASR_MODEL || DEFAULT_ASR_MODEL;
-    const rawTranscript = await transcribeAudio(
-      bytes,
-      data.mimeType,
-      token,
-      asrModel,
-    );
+    const rawTranscript = await transcribeAudio(bytes, data.mimeType, token, asrModel);
     // LGPD: mascara PII pós-ASR antes de auditar, persistir e devolver.
     const transcript = redactText(rawTranscript);
     const analysis = await analyzeTranscript(transcript);
@@ -773,7 +825,13 @@ export const analyzeAudio = createServerFn({ method: "POST" })
       agentName: data.agentName,
     });
 
-    return { ...analysis, transcript: auditSummary, filename: data.filename, id: stored.id, protocol: stored.protocol };
+    return {
+      ...analysis,
+      transcript: auditSummary,
+      filename: data.filename,
+      id: stored.id,
+      protocol: stored.protocol,
+    };
   });
 
 // ===========================================================================
@@ -1019,7 +1077,10 @@ export const analyzeThreeCplusCall = createServerFn({ method: "POST" })
     // que há gravação. Se falhar, seguimos só com o callId.
     let report: ThreeCplusReport | null = null;
     try {
-      report = await threeCplusGet<ThreeCplusReport>(`/calls/${encodeURIComponent(data.callId)}`, token);
+      report = await threeCplusGet<ThreeCplusReport>(
+        `/calls/${encodeURIComponent(data.callId)}`,
+        token,
+      );
     } catch {
       report = null;
     }
@@ -1061,5 +1122,11 @@ export const analyzeThreeCplusCall = createServerFn({ method: "POST" })
       agentName,
     });
 
-    return { ...analysis, transcript: auditSummary, label, id: stored.id, protocol: stored.protocol };
+    return {
+      ...analysis,
+      transcript: auditSummary,
+      label,
+      id: stored.id,
+      protocol: stored.protocol,
+    };
   });

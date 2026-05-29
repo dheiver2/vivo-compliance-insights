@@ -9,11 +9,22 @@ import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import {
-  Select, SelectTrigger, SelectValue, SelectContent, SelectItem,
+  Select,
+  SelectTrigger,
+  SelectValue,
+  SelectContent,
+  SelectItem,
 } from "@/components/ui/select";
 import {
-  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
-  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { CallFicha } from "@/components/CallFicha";
 import { listCalls } from "@/lib/api/calls.functions";
@@ -21,20 +32,46 @@ import { getForm, saveForm, resetForm } from "@/lib/api/monitoring.functions";
 import type { StoredCall } from "@/lib/server/calls-store.server";
 import type { MonitoringCriterion } from "@/lib/server/monitoring-form.server";
 import {
-  FileCheck, Loader2, Sparkles, Plus, Trash2, ArrowUp, ArrowDown,
-  RotateCcw, Save, ShieldAlert, ListChecks, Info,
+  FileCheck,
+  Loader2,
+  Sparkles,
+  Plus,
+  Trash2,
+  ArrowUp,
+  ArrowDown,
+  RotateCcw,
+  Save,
+  ShieldAlert,
+  ListChecks,
+  Info,
 } from "lucide-react";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/monitoring")({
-  head: () => ({ meta: [{ title: "Ficha de Monitoria · VoiceAudit" }, { name: "description", content: "Gestão e revisão das fichas de monitoria de compliance e qualidade." }] }),
+  head: () => ({
+    meta: [
+      { title: "Ficha de Monitoria · VoiceAudit" },
+      {
+        name: "description",
+        content: "Gestão e revisão das fichas de monitoria de compliance e qualidade.",
+      },
+    ],
+  }),
   component: MonitoringPage,
 });
 
 let tmpSeq = 0;
 function newCriterion(): MonitoringCriterion {
   tmpSeq += 1;
-  return { id: `tmp_${tmpSeq}`, label: "", description: "", category: "Geral", weight: 3, critical: false, enabled: true };
+  return {
+    id: `tmp_${tmpSeq}`,
+    label: "",
+    description: "",
+    category: "Geral",
+    weight: 3,
+    critical: false,
+    enabled: true,
+  };
 }
 
 function MonitoringPage() {
@@ -46,14 +83,19 @@ function MonitoringPage() {
           Ficha de Monitoria
         </h1>
         <p className="text-sm text-muted-foreground mt-1">
-          Gerencie os critérios que os agentes Mangaba usam para avaliar cada ligação e revise as fichas geradas.
+          Gerencie os critérios que os agentes Mangaba usam para avaliar cada ligação e revise as
+          fichas geradas.
         </p>
       </header>
 
       <Tabs defaultValue="gestao" className="space-y-6">
         <TabsList>
-          <TabsTrigger value="gestao" className="gap-2"><ListChecks className="h-4 w-4" /> Gestão da ficha</TabsTrigger>
-          <TabsTrigger value="fichas" className="gap-2"><FileCheck className="h-4 w-4" /> Fichas das ligações</TabsTrigger>
+          <TabsTrigger value="gestao" className="gap-2">
+            <ListChecks className="h-4 w-4" /> Gestão da ficha
+          </TabsTrigger>
+          <TabsTrigger value="fichas" className="gap-2">
+            <FileCheck className="h-4 w-4" /> Fichas das ligações
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="gestao">
@@ -158,7 +200,8 @@ function FormManager() {
                 {draft.length} critérios · {enabledCount} ativos · {criticalCount} críticos
               </p>
               <p className="text-muted-foreground">
-                Estes critérios alimentam o prompt da Mangaba AI e as médias do dashboard. Mudanças valem para novas análises.
+                Estes critérios alimentam o prompt da Mangaba AI e as médias do dashboard. Mudanças
+                valem para novas análises.
               </p>
             </div>
           </div>
@@ -173,19 +216,33 @@ function FormManager() {
                 <AlertDialogHeader>
                   <AlertDialogTitle>Restaurar a ficha padrão?</AlertDialogTitle>
                   <AlertDialogDescription>
-                    Os critérios atuais serão substituídos pela ficha regulatória padrão (8 itens). Esta ação não pode ser desfeita.
+                    Os critérios atuais serão substituídos pela ficha regulatória padrão (8 itens).
+                    Esta ação não pode ser desfeita.
                   </AlertDialogDescription>
                 </AlertDialogHeader>
                 <AlertDialogFooter>
                   <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                  <AlertDialogAction onClick={(e) => { e.preventDefault(); reset.mutate(); }}>
-                    {reset.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : "Sim, restaurar"}
+                  <AlertDialogAction
+                    onClick={(e) => {
+                      e.preventDefault();
+                      reset.mutate();
+                    }}
+                  >
+                    {reset.isPending ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      "Sim, restaurar"
+                    )}
                   </AlertDialogAction>
                 </AlertDialogFooter>
               </AlertDialogContent>
             </AlertDialog>
             <Button size="sm" onClick={() => save.mutate()} disabled={!dirty || save.isPending}>
-              {save.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Save className="h-4 w-4 mr-2" />}
+              {save.isPending ? (
+                <Loader2 className="h-4 w-4 animate-spin mr-2" />
+              ) : (
+                <Save className="h-4 w-4 mr-2" />
+              )}
               {dirty ? "Salvar alterações" : "Tudo salvo"}
             </Button>
           </div>
@@ -198,12 +255,22 @@ function FormManager() {
           <CardContent className="py-4 space-y-4">
             <div className="flex items-start gap-3">
               <div className="flex flex-col gap-1 pt-1">
-                <button type="button" onClick={() => move(c.id, -1)} disabled={idx === 0}
-                  className="text-muted-foreground hover:text-foreground disabled:opacity-30" aria-label="Mover para cima">
+                <button
+                  type="button"
+                  onClick={() => move(c.id, -1)}
+                  disabled={idx === 0}
+                  className="text-muted-foreground hover:text-foreground disabled:opacity-30"
+                  aria-label="Mover para cima"
+                >
                   <ArrowUp className="h-4 w-4" />
                 </button>
-                <button type="button" onClick={() => move(c.id, 1)} disabled={idx === draft.length - 1}
-                  className="text-muted-foreground hover:text-foreground disabled:opacity-30" aria-label="Mover para baixo">
+                <button
+                  type="button"
+                  onClick={() => move(c.id, 1)}
+                  disabled={idx === draft.length - 1}
+                  className="text-muted-foreground hover:text-foreground disabled:opacity-30"
+                  aria-label="Mover para baixo"
+                >
                   <ArrowDown className="h-4 w-4" />
                 </button>
               </div>
@@ -211,22 +278,41 @@ function FormManager() {
               <div className="flex-1 space-y-3 min-w-0">
                 <div className="flex flex-wrap items-end gap-3">
                   <div className="flex-1 min-w-[220px]">
-                    <Label htmlFor={`label-${c.id}`} className="text-xs">Critério</Label>
-                    <Input id={`label-${c.id}`} value={c.label} placeholder="Ex.: Identificação do atendente"
-                      onChange={(e) => update(c.id, { label: e.target.value })} />
+                    <Label htmlFor={`label-${c.id}`} className="text-xs">
+                      Critério
+                    </Label>
+                    <Input
+                      id={`label-${c.id}`}
+                      value={c.label}
+                      placeholder="Ex.: Identificação do atendente"
+                      onChange={(e) => update(c.id, { label: e.target.value })}
+                    />
                   </div>
                   <div className="w-40">
-                    <Label htmlFor={`cat-${c.id}`} className="text-xs">Categoria</Label>
-                    <Input id={`cat-${c.id}`} value={c.category} placeholder="Geral"
-                      onChange={(e) => update(c.id, { category: e.target.value })} />
+                    <Label htmlFor={`cat-${c.id}`} className="text-xs">
+                      Categoria
+                    </Label>
+                    <Input
+                      id={`cat-${c.id}`}
+                      value={c.category}
+                      placeholder="Geral"
+                      onChange={(e) => update(c.id, { category: e.target.value })}
+                    />
                   </div>
                   <div className="w-28">
                     <Label className="text-xs">Peso</Label>
-                    <Select value={String(c.weight)} onValueChange={(v) => update(c.id, { weight: Number(v) })}>
-                      <SelectTrigger><SelectValue /></SelectTrigger>
+                    <Select
+                      value={String(c.weight)}
+                      onValueChange={(v) => update(c.id, { weight: Number(v) })}
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
                       <SelectContent>
                         {[1, 2, 3, 4, 5].map((w) => (
-                          <SelectItem key={w} value={String(w)}>{w}</SelectItem>
+                          <SelectItem key={w} value={String(w)}>
+                            {w}
+                          </SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
@@ -234,26 +320,43 @@ function FormManager() {
                 </div>
 
                 <div>
-                  <Label htmlFor={`desc-${c.id}`} className="text-xs">O que avaliar (orienta a IA)</Label>
-                  <Textarea id={`desc-${c.id}`} value={c.description} rows={2}
+                  <Label htmlFor={`desc-${c.id}`} className="text-xs">
+                    O que avaliar (orienta a IA)
+                  </Label>
+                  <Textarea
+                    id={`desc-${c.id}`}
+                    value={c.description}
+                    rows={2}
                     placeholder="Descreva o que o agente deve verificar neste item."
-                    onChange={(e) => update(c.id, { description: e.target.value })} />
+                    onChange={(e) => update(c.id, { description: e.target.value })}
+                  />
                 </div>
 
                 <div className="flex flex-wrap items-center gap-6">
                   <label className="flex items-center gap-2 text-sm cursor-pointer">
-                    <Switch checked={c.enabled} onCheckedChange={(v) => update(c.id, { enabled: v })} />
+                    <Switch
+                      checked={c.enabled}
+                      onCheckedChange={(v) => update(c.id, { enabled: v })}
+                    />
                     Ativo na avaliação
                   </label>
                   <label className="flex items-center gap-2 text-sm cursor-pointer">
-                    <Switch checked={c.critical} onCheckedChange={(v) => update(c.id, { critical: v })} />
+                    <Switch
+                      checked={c.critical}
+                      onCheckedChange={(v) => update(c.id, { critical: v })}
+                    />
                     <span className="flex items-center gap-1">
-                      <ShieldAlert className={`h-4 w-4 ${c.critical ? "text-destructive" : "text-muted-foreground"}`} />
+                      <ShieldAlert
+                        className={`h-4 w-4 ${c.critical ? "text-destructive" : "text-muted-foreground"}`}
+                      />
                       Item crítico
                     </span>
                   </label>
-                  <button type="button" onClick={() => remove(c.id)}
-                    className="ml-auto inline-flex items-center gap-1 text-sm text-destructive hover:underline">
+                  <button
+                    type="button"
+                    onClick={() => remove(c.id)}
+                    className="ml-auto inline-flex items-center gap-1 text-sm text-destructive hover:underline"
+                  >
                     <Trash2 className="h-4 w-4" /> Remover
                   </button>
                 </div>
@@ -307,7 +410,10 @@ function CallFichaViewer() {
           <Sparkles className="h-12 w-12 mb-4 opacity-40" />
           <p className="text-base font-medium text-foreground">Nenhuma análise para exibir</p>
           <p className="text-sm mt-1">Faça uma análise para gerar a ficha de monitoria.</p>
-          <Link to="/analyze" className="mt-6 inline-flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90">
+          <Link
+            to="/analyze"
+            className="mt-6 inline-flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90"
+          >
             <Sparkles className="h-4 w-4" /> Ir para Análise IA
           </Link>
         </CardContent>

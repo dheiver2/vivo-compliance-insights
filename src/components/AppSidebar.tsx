@@ -4,6 +4,7 @@ import {
   Sidebar, SidebarContent, SidebarGroup, SidebarGroupContent, SidebarGroupLabel,
   SidebarMenu, SidebarMenuButton, SidebarMenuItem, SidebarHeader, useSidebar,
 } from "@/components/ui/sidebar";
+import { VivoLogo } from "@/components/VivoLogo";
 
 const items = [
   { title: "Dashboard", url: "/dashboard", icon: LayoutDashboard },
@@ -26,9 +27,11 @@ export function AppSidebar() {
             <Headphones className="h-5 w-5 text-primary-foreground" />
           </div>
           {!collapsed && (
-            <div className="flex flex-col">
-              <span className="font-display font-bold text-sidebar-foreground">VoiceAudit</span>
-              <span className="text-[10px] uppercase tracking-wider text-sidebar-foreground/60">Vivo · Compliance</span>
+            <div className="flex flex-col gap-1">
+              <span className="font-display font-bold text-sidebar-foreground leading-none">VoiceAudit</span>
+              <span className="flex items-center gap-1 text-[10px] uppercase tracking-wider text-sidebar-foreground/60">
+                por <VivoLogo className="h-2.5 text-sidebar-foreground/80" /> · Compliance
+              </span>
             </div>
           )}
         </Link>

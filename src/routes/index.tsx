@@ -3,6 +3,7 @@ import {
   Headphones, Sparkles, ShieldCheck, Bot, FileCheck, Phone, ArrowRight,
   Gauge, Lock, Check, X,
 } from "lucide-react";
+import { VivoLogo } from "@/components/VivoLogo";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -48,7 +49,9 @@ function Landing() {
             </div>
             <div className="leading-tight">
               <div className="font-display font-bold">VoiceAudit</div>
-              <div className="text-[10px] uppercase tracking-wider text-muted-foreground">Vivo · Compliance</div>
+              <div className="flex items-center gap-1 text-[10px] uppercase tracking-wider text-muted-foreground">
+                por <VivoLogo className="h-2.5 text-primary" /> · Compliance
+              </div>
             </div>
           </div>
           <nav className="hidden items-center gap-6 text-sm text-muted-foreground md:flex">
@@ -93,6 +96,10 @@ function Landing() {
             >
               Ver dashboard <ArrowRight className="h-4 w-4" />
             </Link>
+          </div>
+
+          <div className="mt-10 flex items-center justify-center gap-2 text-xs uppercase tracking-widest text-white/50">
+            uma solução <VivoLogo className="h-4 text-white/80" />
           </div>
 
           <div className="mx-auto mt-16 grid max-w-3xl grid-cols-2 gap-px overflow-hidden rounded-xl border border-white/10 bg-white/10 sm:grid-cols-4">
@@ -239,7 +246,7 @@ function Landing() {
               <Headphones className="h-4 w-4 text-primary-foreground" />
             </div>
             <span className="font-display font-semibold text-foreground">VoiceAudit</span>
-            <span>· Vivo Compliance</span>
+            <span className="flex items-center gap-1">· uma solução <VivoLogo className="h-3 text-primary" /></span>
           </div>
           <p>Demonstração · dados fictícios para fins de avaliação.</p>
         </div>

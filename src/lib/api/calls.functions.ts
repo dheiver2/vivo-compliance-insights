@@ -54,7 +54,7 @@ export const getSystemStatus = createServerFn({ method: "GET" }).handler(
     return {
       hfConfigured: Boolean(process.env.HF_TOKEN),
       llmModel: process.env.HF_MODEL || "meta-llama/Llama-3.1-8B-Instruct",
-      asrModel: process.env.HF_ASR_MODEL || "openai/whisper-large-v3",
+      asrModel: process.env.HF_ASR_MODEL || "openai/whisper-large-v3-turbo",
       totalCalls: calls.length,
     };
   },

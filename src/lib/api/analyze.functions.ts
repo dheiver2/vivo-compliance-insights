@@ -21,7 +21,9 @@ const DEFAULT_MODEL = "meta-llama/Llama-3.1-8B-Instruct";
 
 // Automatic Speech Recognition (transcrição) via HuggingFace Inference.
 const HF_ASR_URL_BASE = "https://router.huggingface.co/hf-inference/models/";
-const DEFAULT_ASR_MODEL = "openai/whisper-large-v3";
+// whisper-large-v3-turbo é ~2x mais rápido (≈3,4s vs 7,7s warm) com transcrição
+// equivalente — reduz o risco de cold-start/gateway timeout (504) no provedor.
+const DEFAULT_ASR_MODEL = "openai/whisper-large-v3-turbo";
 // Limite defensivo de tamanho do áudio enviado (25 MB).
 const MAX_AUDIO_BYTES = 25 * 1024 * 1024;
 

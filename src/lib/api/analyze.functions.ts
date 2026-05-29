@@ -255,32 +255,69 @@ async function analyzeTranscript(transcript: string): Promise<CallAnalysis> {
 }
 
 // Transcrição (ASR) de áudio binário via Whisper na HuggingFace Inference.
+//
+// A Inference da HuggingFace faz "cold start" do modelo sob demanda: a primeira
+// chamada com o modelo frio costuma devolver 503 (model loading) ou 504 (gateway
+// timeout) enquanto ele carrega. Tratamos isso com algumas retentativas e
+// backoff — sem retry, áudios falham de forma intermitente só porque o modelo
+// estava esfriando. Erros não transitórios (4xx) falham de imediato.
 async function transcribeAudio(
   bytes: Uint8Array,
   contentType: string,
   token: string,
   model: string,
 ): Promise<string> {
-  const res = await fetch(`${HF_ASR_URL_BASE}${model}`, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${token}`,
-      "Content-Type": contentType || "application/octet-stream",
-    },
-    // Uint8Array é um BodyInit válido em runtime (Node/Workers); o cast satisfaz
-    // a tipagem estrita do lib.dom de fetch.
-    body: bytes as unknown as BodyInit,
-  });
+  const maxAttempts = 4;
+  let lastDetail = "";
+  let lastStatus = 0;
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    let res: Response;
+    try {
+      res = await fetch(`${HF_ASR_URL_BASE}${model}`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": contentType || "application/octet-stream",
+        },
+        // Uint8Array é um BodyInit válido em runtime (Node/Workers); o cast
+        // satisfaz a tipagem estrita do lib.dom de fetch.
+        body: bytes as unknown as BodyInit,
+      });
+    } catch (error) {
+      // Erro de rede/timeout do fetch — trata como transitório e tenta de novo.
+      lastDetail = error instanceof Error ? error.message : "erro de rede";
+      lastStatus = 0;
+      if (attempt < maxAttempts) {
+        await new Promise((r) => setTimeout(r, attempt * 4000));
+        continue;
+      }
+      throw new Error(`Mangaba Voz: falha de rede ao transcrever (${lastDetail}).`);
+    }
 
-  if (!res.ok) {
-    const detail = await res.text().catch(() => "");
-    throw new Error(`Mangaba Voz ${res.status}: ${detail.slice(0, 300)}`);
+    if (res.ok) {
+      const payload = (await res.json()) as { text?: string };
+      const text = payload.text?.trim();
+      if (!text) throw new Error("Transcrição vazia retornada pelo modelo ASR.");
+      return text;
+    }
+
+    lastStatus = res.status;
+    lastDetail = (await res.text().catch(() => "")).slice(0, 300);
+    // 503 (model loading) e 504 (gateway timeout) são transitórios: o modelo
+    // está esquentando. Demais erros (ex.: 401, 413) são definitivos.
+    const transient = res.status === 503 || res.status === 504 || res.status === 429;
+    if (transient && attempt < maxAttempts) {
+      await new Promise((r) => setTimeout(r, attempt * 4000));
+      continue;
+    }
+    break;
   }
 
-  const payload = (await res.json()) as { text?: string };
-  const text = payload.text?.trim();
-  if (!text) throw new Error("Transcrição vazia retornada pelo modelo ASR.");
-  return text;
+  const friendly =
+    lastStatus === 503 || lastStatus === 504
+      ? "O modelo de transcrição (Mangaba Voz) está iniciando no provedor. Aguarde alguns segundos e tente novamente."
+      : `Mangaba Voz ${lastStatus}: ${lastDetail}`;
+  throw new Error(friendly);
 }
 
 // Baixa uma gravação por HTTP (server-side) e devolve os bytes + content-type,
@@ -594,14 +631,18 @@ async function threeCplusGet<T>(path: string, token: string): Promise<T> {
 
 // Baixa a gravação de uma ligação na 3C Plus.
 //
-// Particularidades descobertas testando a API real:
+// Particularidades descobertas testando a API real (mesma URL, requisições
+// seguidas → 200, 200, 404, ...):
 //  - O host correto é o de THREECPLUS_BASE (3c.fluxoti.com). O campo `recording`
 //    do relatório aponta para `app.3c.plus`, que responde 404 — por isso NÃO o
 //    usamos; construímos a URL no host que funciona.
-//  - O endpoint impõe rate limit (~1 download / 5 s). Quando estourado, devolve
-//    HTTP 422 com `error: "Muitas requisições, aguarde 5 segundos..."`. Tratamos
-//    isso com algumas tentativas espaçadas em vez de falhar de imediato.
-//  - Ligações sem áudio (caixa postal, sem atendimento) respondem 404.
+//  - O endpoint é balanceado entre nós e ALGUNS devolvem 404 (nginx) de forma
+//    intermitente, mesmo para ligações que TÊM gravação. Portanto 404 é tratado
+//    como TRANSITÓRIO: só concluímos "sem áudio" se persistir por todas as
+//    tentativas.
+//  - Há rate limit (~1 download / 5 s): estourado, devolve HTTP 422 com
+//    `error: "Muitas requisições, aguarde 5 segundos..."`. Aguardamos e tentamos
+//    de novo.
 async function downloadThreeCplusRecording(
   callId: string,
   token: string,
@@ -610,17 +651,24 @@ async function downloadThreeCplusRecording(
     `${THREECPLUS_BASE}/calls/${encodeURIComponent(callId)}/recording`,
     token,
   );
-  const maxAttempts = 4;
+  const maxAttempts = 6;
+  let sawRateLimit = false;
+  let saw404 = false;
+  let lastStatus = 0;
+  let lastDetail = "";
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     let res: Response;
     try {
       res = await fetch(url, { headers: { Accept: "*/*" } });
     } catch (error) {
-      throw new Error(
-        `Não foi possível acessar a gravação: ${
-          error instanceof Error ? error.message : "erro de rede"
-        }`,
-      );
+      // Falha de rede — transitória; tenta de novo com pequeno backoff.
+      lastStatus = 0;
+      lastDetail = error instanceof Error ? error.message : "erro de rede";
+      if (attempt < maxAttempts) {
+        await new Promise((r) => setTimeout(r, 2000));
+        continue;
+      }
+      break;
     }
     if (res.ok) {
       const contentType = res.headers.get("content-type") || "application/octet-stream";
@@ -639,27 +687,46 @@ async function downloadThreeCplusRecording(
       }
       return { bytes, contentType };
     }
-    const detail = await res.text().catch(() => "");
-    const isRateLimit = res.status === 422 && /muitas requisi/i.test(detail);
-    if (isRateLimit && attempt < maxAttempts) {
-      // A própria API pede ~5 s; aguardamos antes de tentar de novo.
-      await new Promise((r) => setTimeout(r, 5200));
-      continue;
-    }
-    if (res.status === 404) {
-      throw new Error(
-        "Esta ligação não tem áudio disponível na 3C Plus (provável caixa postal ou chamada sem atendimento). Selecione uma ligação com tempo de conversa.",
-      );
-    }
+    lastStatus = res.status;
+    lastDetail = (await res.text().catch(() => "")).slice(0, 160);
+    const isRateLimit = res.status === 422 && /muitas requisi/i.test(lastDetail);
     if (isRateLimit) {
-      throw new Error(
-        "A 3C Plus está limitando os downloads de gravação (muitas requisições). Aguarde alguns segundos e tente novamente.",
-      );
+      sawRateLimit = true;
+      if (attempt < maxAttempts) {
+        // A própria API pede ~5 s; aguardamos antes de tentar de novo.
+        await new Promise((r) => setTimeout(r, 5200));
+        continue;
+      }
+      break;
     }
-    throw new Error(`3C Plus retornou ${res.status} ao baixar a gravação: ${detail.slice(0, 160)}`);
+    // 404 intermitente do balanceador: tenta outro nó. Só vira "sem áudio" se
+    // NUNCA conseguirmos um 200 ao longo das tentativas.
+    if (res.status === 404) {
+      saw404 = true;
+      if (attempt < maxAttempts) {
+        await new Promise((r) => setTimeout(r, 1800));
+        continue;
+      }
+      break;
+    }
+    // Outros erros (401, 413, 5xx...) — definitivos.
+    throw new Error(`3C Plus retornou ${res.status} ao baixar a gravação: ${lastDetail}`);
   }
-  // Inalcançável, mas mantém o tipo de retorno consistente.
-  throw new Error("Falha ao baixar a gravação da 3C Plus após várias tentativas.");
+
+  // Esgotou as tentativas. Mensagem conforme o que mais apareceu.
+  if (sawRateLimit) {
+    throw new Error(
+      "A 3C Plus está limitando os downloads de gravação (muitas requisições). Aguarde alguns segundos e tente novamente.",
+    );
+  }
+  if (saw404) {
+    throw new Error(
+      "Não foi possível baixar a gravação desta ligação na 3C Plus (o provedor respondeu 404 repetidamente). Pode ser uma ligação sem áudio (caixa postal) ou instabilidade momentânea — tente novamente em instantes.",
+    );
+  }
+  throw new Error(
+    `Falha ao baixar a gravação da 3C Plus${lastStatus ? ` (${lastStatus})` : ""}: ${lastDetail || "erro de rede"}.`,
+  );
 }
 
 // Item enxuto de ligação 3C Plus exposto à UI (telefone já mascarado).

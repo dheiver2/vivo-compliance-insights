@@ -370,6 +370,38 @@ function base64ToBytes(base64: string): Uint8Array {
   return bytes;
 }
 
+// Resumo da auditoria que SUBSTITUI a transcrição completa no armazenamento e
+// na resposta ao cliente. A transcrição bruta nunca é persistida nem devolvida
+// (privacidade/LGPD): guardamos apenas o necessário para auditar e justificar o
+// script de monitoria — o resumo do caso + a resposta de cada critério (com a
+// evidência da IA) + as observações. Assim a ficha "responde o script" sem reter
+// o diálogo na íntegra.
+function buildAuditSummary(analysis: CallAnalysis): string {
+  const lines: string[] = [];
+  if (analysis.summary.trim()) lines.push(analysis.summary.trim());
+
+  if (analysis.checks.length) {
+    lines.push("");
+    lines.push("Script de monitoria:");
+    for (const c of analysis.checks) {
+      const mark = c.passed ? "✓" : "✗";
+      const evidence = c.evidence?.trim() ? ` — ${c.evidence.trim()}` : "";
+      lines.push(`${mark} ${c.label} (${c.score}%)${evidence}`);
+    }
+  }
+
+  if (analysis.observations.length) {
+    lines.push("");
+    lines.push("Observações:");
+    for (const o of analysis.observations) {
+      const time = o.time && o.time !== "—" ? `${o.time} ` : "";
+      lines.push(`• [${o.severity}] ${time}${o.note}`);
+    }
+  }
+
+  return lines.join("\n").trim();
+}
+
 // Toda análise persistida devolve também o id/protocolo do registro criado,
 // para que o cliente possa navegar direto à ficha de detalhe.
 export type StoredAnalysis = CallAnalysis & { id: string; protocol: string };
@@ -386,7 +418,15 @@ export const analyzeCall = createServerFn({ method: "POST" })
     // IA externa, persistir e exibir. O mesmo texto redigido flui por tudo.
     const transcript = redactText(data.transcript);
     const analysis = await analyzeTranscript(transcript);
-    const stored = await recordAnalysis({ analysis, origin: "texto", label: "Transcrição manual", transcript, agentName: data.agentName });
+    // Armazena somente o resumo da auditoria; a transcrição bruta não é retida.
+    const stored = await recordAnalysis({
+      analysis,
+      origin: "texto",
+      label: "Transcrição manual",
+      transcript: buildAuditSummary(analysis),
+      topicSource: transcript,
+      agentName: data.agentName,
+    });
     return { ...analysis, id: stored.id, protocol: stored.protocol };
   });
 
@@ -523,15 +563,19 @@ export const analyzeCallFromUrl = createServerFn({ method: "POST" })
     // Origem "audio" quando veio de gravação; "texto" quando o provedor enviou
     // a transcrição pronta.
     const origin = data.transcript.trim() ? "texto" : "audio";
+    // Resumo da auditoria substitui a transcrição completa (não persistimos nem
+    // devolvemos o diálogo bruto).
+    const auditSummary = buildAuditSummary(analysis);
     const stored = await recordAnalysis({
       analysis,
       origin,
       label,
-      transcript,
+      transcript: auditSummary,
+      topicSource: transcript,
       agentName: data.agentName,
     });
 
-    return { ...analysis, transcript, label, id: stored.id, protocol: stored.protocol };
+    return { ...analysis, transcript: auditSummary, label, id: stored.id, protocol: stored.protocol };
   });
 
 export const analyzeAudio = createServerFn({ method: "POST" })
@@ -566,9 +610,18 @@ export const analyzeAudio = createServerFn({ method: "POST" })
     // LGPD: mascara PII pós-ASR antes de auditar, persistir e devolver.
     const transcript = redactText(rawTranscript);
     const analysis = await analyzeTranscript(transcript);
-    const stored = await recordAnalysis({ analysis, origin: "audio", label: data.filename, transcript, agentName: data.agentName });
+    // Persiste/retorna apenas o resumo da auditoria, nunca a transcrição bruta.
+    const auditSummary = buildAuditSummary(analysis);
+    const stored = await recordAnalysis({
+      analysis,
+      origin: "audio",
+      label: data.filename,
+      transcript: auditSummary,
+      topicSource: transcript,
+      agentName: data.agentName,
+    });
 
-    return { ...analysis, transcript, filename: data.filename, id: stored.id, protocol: stored.protocol };
+    return { ...analysis, transcript: auditSummary, filename: data.filename, id: stored.id, protocol: stored.protocol };
   });
 
 // ===========================================================================
@@ -844,7 +897,17 @@ export const analyzeThreeCplusCall = createServerFn({ method: "POST" })
     const agentName = data.agentName?.trim() || report?.agent || undefined;
 
     const analysis = await analyzeTranscript(transcript);
-    const stored = await recordAnalysis({ analysis, origin: "audio", label, transcript, agentName });
+    // Resumo da auditoria substitui a transcrição completa (não retemos o áudio
+    // transcrito na íntegra).
+    const auditSummary = buildAuditSummary(analysis);
+    const stored = await recordAnalysis({
+      analysis,
+      origin: "audio",
+      label,
+      transcript: auditSummary,
+      topicSource: transcript,
+      agentName,
+    });
 
-    return { ...analysis, transcript, label, id: stored.id, protocol: stored.protocol };
+    return { ...analysis, transcript: auditSummary, label, id: stored.id, protocol: stored.protocol };
   });

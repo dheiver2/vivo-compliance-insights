@@ -89,9 +89,10 @@ export function CallFicha({ call }: { call: StoredCall }) {
 
       <Card>
         <CardHeader>
-          <CardTitle>Transcrição</CardTitle>
+          <CardTitle>Resumo da auditoria</CardTitle>
           <CardDescription>
-            {call.origin === "audio" ? "Texto transcrito do áudio (Mangaba Voz)" : "Texto enviado para análise"}
+            Resumo do caso e a resposta de cada item do script de monitoria. Por
+            privacidade (LGPD), a transcrição completa não é armazenada.
           </CardDescription>
         </CardHeader>
         <CardContent>

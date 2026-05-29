@@ -303,7 +303,7 @@ function AudioJobCard({ job }: { job: AudioJob }) {
                 className="flex w-full items-center justify-between px-3 py-2 text-sm font-medium"
               >
                 <span className="flex items-center gap-2">
-                  <FileText className="h-4 w-4 text-muted-foreground" /> Transcrição
+                  <FileText className="h-4 w-4 text-muted-foreground" /> Resumo da auditoria
                 </span>
                 <ChevronDown className={`h-4 w-4 transition-transform ${open ? "rotate-180" : ""}`} />
               </button>

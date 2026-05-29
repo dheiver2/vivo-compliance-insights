@@ -236,7 +236,12 @@ export async function recordAnalysis(input: {
   analysis: CallAnalysis;
   origin: CallOrigin;
   label: string;
+  // Texto que será ARMAZENADO/EXIBIDO na ficha. Por política de privacidade
+  // (LGPD), aqui entra o RESUMO da auditoria — nunca a transcrição completa.
   transcript: string;
+  // Texto usado APENAS para classificar o tema da ligação. Recebe a transcrição
+  // bruta de forma transitória; NÃO é persistido em lugar nenhum.
+  topicSource?: string;
   agentName?: string;
 }): Promise<StoredCall> {
   await ensureLoaded();
@@ -249,7 +254,7 @@ export async function recordAnalysis(input: {
     origin,
     label,
     agentName: normalizeAgentName(input.agentName),
-    topic: classifyTopic(transcript),
+    topic: classifyTopic(input.topicSource ?? transcript),
     scoreCompliance: analysis.scoreCompliance,
     scoreQuality: analysis.scoreQuality,
     sentiment: analysis.sentiment,

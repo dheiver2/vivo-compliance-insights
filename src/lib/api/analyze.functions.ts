@@ -318,6 +318,167 @@ const AnalyzeAudioInput = z.object({
 
 export type AudioAnalysis = CallAnalysis & { transcript: string; filename: string; id: string; protocol: string };
 
+// ---------------------------------------------------------------------------
+// Ingestão via API de mercado (telefonia/contact center).
+//
+// Provedores como Twilio, Genesys Cloud, NICE CXone, Five9, Amazon Connect,
+// Vonage e Zenvia expõem a gravação de cada ligação como uma URL acessível por
+// HTTP (normalmente com um token/credencial). Esta server fn recebe essa URL,
+// baixa o áudio do servidor (fetch real, server-side), transcreve via Mangaba
+// Voz e roda a auditoria — exatamente como o upload manual, mas alimentado
+// diretamente pelo provedor.
+//
+// Para integrações onde o provedor já entrega a transcrição (speech-to-text do
+// próprio provedor) ou onde se quer pular a ASR, basta enviar `transcript`.
+// ---------------------------------------------------------------------------
+
+// Catálogo de provedores suportados. Usado apenas para rotular a origem da
+// ligação de forma legível; o download é genérico (qualquer URL HTTP[S]).
+export const MARKET_PROVIDERS = [
+  { id: "twilio", label: "Twilio" },
+  { id: "genesys", label: "Genesys Cloud" },
+  { id: "nice", label: "NICE CXone" },
+  { id: "five9", label: "Five9" },
+  { id: "amazon-connect", label: "Amazon Connect" },
+  { id: "vonage", label: "Vonage" },
+  { id: "zenvia", label: "Zenvia" },
+  { id: "generic", label: "Webhook genérico" },
+] as const;
+
+const PROVIDER_LABELS: Record<string, string> = Object.fromEntries(
+  MARKET_PROVIDERS.map((p) => [p.id, p.label]),
+);
+
+const IngestUrlInput = z
+  .object({
+    // URL da gravação no provedor. Opcional quando o provedor já envia a
+    // transcrição pronta (campo `transcript`).
+    recordingUrl: z.string().optional().default(""),
+    provider: z.string().optional().default("generic"),
+    externalId: z.string().optional().default(""),
+    agentName: z.string().optional(),
+    // Cabeçalho de autorização opcional para acessar a gravação no provedor
+    // (ex.: "Bearer xxx" ou "Basic base64(sid:token)" no padrão Twilio).
+    authHeader: z.string().optional().default(""),
+    // Transcrição pré-existente: se enviada, pula a etapa de ASR (Mangaba Voz).
+    transcript: z.string().optional().default(""),
+  })
+  .superRefine((data, ctx) => {
+    const url = (data.recordingUrl ?? "").trim();
+    const transcript = (data.transcript ?? "").trim();
+    // Precisa de pelo menos uma fonte: a URL da gravação OU a transcrição.
+    if (!url && !transcript) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["recordingUrl"],
+        message: "Informe a URL da gravação ou cole a transcrição do provedor.",
+      });
+      return;
+    }
+    // Se uma URL foi informada, ela precisa ser http/https válida.
+    if (url && !/^https?:\/\/.+/i.test(url)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["recordingUrl"],
+        message: "A URL da gravação deve usar http ou https.",
+      });
+    }
+  });
+
+export type IngestAnalysis = CallAnalysis & {
+  transcript: string;
+  label: string;
+  id: string;
+  protocol: string;
+};
+
+// Deriva um nome de arquivo legível a partir da URL (último segmento do path).
+function filenameFromUrl(url: string): string {
+  try {
+    const u = new URL(url);
+    const last = u.pathname.split("/").filter(Boolean).pop();
+    return last ? decodeURIComponent(last) : u.hostname;
+  } catch {
+    return "gravacao";
+  }
+}
+
+export const analyzeCallFromUrl = createServerFn({ method: "POST" })
+  .inputValidator(IngestUrlInput)
+  .handler(async ({ data }): Promise<IngestAnalysis> => {
+    const providerLabel = PROVIDER_LABELS[data.provider] ?? "Provedor externo";
+    const fileLabel = filenameFromUrl(data.recordingUrl);
+    // Rótulo legível da ligação: provedor + id externo (ou nome do arquivo).
+    const label = `${providerLabel} · ${data.externalId.trim() || fileLabel}`;
+
+    let transcript = data.transcript.trim();
+
+    // Caminho 1: provedor entregou a transcrição → pula a ASR.
+    if (!transcript) {
+      // Caminho 2: baixa a gravação do provedor e transcreve com a Mangaba Voz.
+      const token = process.env.HF_TOKEN;
+      if (!token) {
+        throw new Error(
+          "Transcrição de áudio do provedor requer a Mangaba AI ativa no servidor (ou envie a transcrição pronta).",
+        );
+      }
+
+      const headers: Record<string, string> = {};
+      if (data.authHeader.trim()) headers.Authorization = data.authHeader.trim();
+
+      let res: Response;
+      try {
+        res = await fetch(data.recordingUrl, { headers });
+      } catch (error) {
+        throw new Error(
+          `Não foi possível acessar a gravação no provedor: ${
+            error instanceof Error ? error.message : "erro de rede"
+          }`,
+        );
+      }
+      if (!res.ok) {
+        throw new Error(
+          `Provedor retornou ${res.status} ao baixar a gravação. Verifique a URL e a autorização.`,
+        );
+      }
+
+      const contentType = res.headers.get("content-type") || "application/octet-stream";
+      const buffer = await res.arrayBuffer();
+      const bytes = new Uint8Array(buffer);
+      if (bytes.byteLength === 0) {
+        throw new Error("A gravação baixada do provedor está vazia.");
+      }
+      if (bytes.byteLength > MAX_AUDIO_BYTES) {
+        throw new Error(
+          `Gravação muito grande (${(bytes.byteLength / 1024 / 1024).toFixed(1)} MB). Limite: ${
+            MAX_AUDIO_BYTES / 1024 / 1024
+          } MB.`,
+        );
+      }
+
+      const asrModel = process.env.HF_ASR_MODEL || DEFAULT_ASR_MODEL;
+      transcript = await transcribeAudio(bytes, contentType, token, asrModel);
+    }
+
+    if (transcript.trim().length < 20) {
+      throw new Error("Transcrição muito curta para auditar.");
+    }
+
+    const analysis = await analyzeTranscript(transcript);
+    // Origem "audio" quando veio de gravação; "texto" quando o provedor enviou
+    // a transcrição pronta.
+    const origin = data.transcript.trim() ? "texto" : "audio";
+    const stored = await recordAnalysis({
+      analysis,
+      origin,
+      label,
+      transcript,
+      agentName: data.agentName,
+    });
+
+    return { ...analysis, transcript, label, id: stored.id, protocol: stored.protocol };
+  });
+
 export const analyzeAudio = createServerFn({ method: "POST" })
   .inputValidator(AnalyzeAudioInput)
   .handler(async ({ data }): Promise<AudioAnalysis> => {

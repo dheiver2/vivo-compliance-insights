@@ -9,10 +9,11 @@ import { Textarea } from "@/components/ui/textarea";
 import { Progress } from "@/components/ui/progress";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { StatusBadge } from "@/components/StatusBadge";
-import { analyzeCall, analyzeAudio } from "@/lib/api/analyze.functions";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { analyzeCall, analyzeAudio, analyzeCallFromUrl, MARKET_PROVIDERS } from "@/lib/api/analyze.functions";
 import { SAMPLE_TRANSCRIPT, statusFromScore, type CallAnalysis } from "@/lib/compliance";
 import { mangabaSourceLabel } from "@/lib/mangaba";
-import { Sparkles, Wand2, FileText, CheckCircle2, XCircle, Cpu, Loader2, Smile, Meh, Frown, AudioLines, Upload, Trash2, ChevronDown, FileCheck, User } from "lucide-react";
+import { Sparkles, Wand2, FileText, CheckCircle2, XCircle, Cpu, Loader2, Smile, Meh, Frown, AudioLines, Upload, Trash2, ChevronDown, FileCheck, User, Plug, Link2, KeyRound } from "lucide-react";
 
 export const Route = createFileRoute("/analyze")({
   head: () => ({
@@ -454,6 +455,178 @@ function AudioBatchPanel() {
   );
 }
 
+function MarketApiPanel() {
+  const [provider, setProvider] = useState<string>(MARKET_PROVIDERS[0].id);
+  const [recordingUrl, setRecordingUrl] = useState("");
+  const [externalId, setExternalId] = useState("");
+  const [agentName, setAgentName] = useState("");
+  const [authHeader, setAuthHeader] = useState("");
+  const [transcript, setTranscript] = useState("");
+
+  const mutation = useMutation({
+    mutationFn: () =>
+      analyzeCallFromUrl({
+        data: {
+          recordingUrl: recordingUrl.trim(),
+          provider,
+          externalId: externalId.trim(),
+          agentName: agentName.trim() || undefined,
+          authHeader: authHeader.trim(),
+          transcript: transcript.trim(),
+        },
+      }),
+  });
+
+  const hasTranscript = transcript.trim().length >= 20;
+  const hasUrl = /^https?:\/\//i.test(recordingUrl.trim());
+  const canSubmit = (hasUrl || hasTranscript) && !mutation.isPending;
+
+  return (
+    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Plug className="h-4 w-4 text-primary" /> Receber ligação via API de mercado
+          </CardTitle>
+          <CardDescription>
+            Conecte um provedor de telefonia/contact center (Twilio, Genesys, NICE CXone,
+            Five9, Amazon Connect, Vonage, Zenvia). Informe a URL da gravação — o servidor
+            baixa o áudio, transcreve com o Mangaba Voz e roda a auditoria.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <Label className="text-xs">Provedor</Label>
+              <Select value={provider} onValueChange={setProvider} disabled={mutation.isPending}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Selecione o provedor" />
+                </SelectTrigger>
+                <SelectContent>
+                  {MARKET_PROVIDERS.map((p) => (
+                    <SelectItem key={p.id} value={p.id}>{p.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="external-id" className="text-xs">
+                ID da ligação <span className="text-muted-foreground font-normal">(no provedor)</span>
+              </Label>
+              <Input
+                id="external-id"
+                value={externalId}
+                onChange={(e) => setExternalId(e.target.value)}
+                placeholder="Ex.: CA1234… / conv-9876"
+                disabled={mutation.isPending}
+              />
+            </div>
+          </div>
+
+          <div className="space-y-1.5">
+            <Label htmlFor="recording-url" className="flex items-center gap-1.5 text-xs">
+              <Link2 className="h-3.5 w-3.5 text-muted-foreground" /> URL da gravação
+            </Label>
+            <Input
+              id="recording-url"
+              value={recordingUrl}
+              onChange={(e) => setRecordingUrl(e.target.value)}
+              placeholder="https://api.twilio.com/…/Recordings/RE….mp3"
+              disabled={mutation.isPending}
+            />
+          </div>
+
+          <div className="space-y-1.5">
+            <Label htmlFor="auth-header" className="flex items-center gap-1.5 text-xs">
+              <KeyRound className="h-3.5 w-3.5 text-muted-foreground" /> Autorização <span className="text-muted-foreground font-normal">(opcional)</span>
+            </Label>
+            <Input
+              id="auth-header"
+              value={authHeader}
+              onChange={(e) => setAuthHeader(e.target.value)}
+              placeholder="Bearer … ou Basic …"
+              disabled={mutation.isPending}
+            />
+            <p className="text-[11px] text-muted-foreground">
+              Enviado como cabeçalho <code className="font-mono">Authorization</code> ao baixar a gravação no provedor.
+            </p>
+          </div>
+
+          <div className="space-y-1.5">
+            <Label htmlFor="agent-api" className="flex items-center gap-1.5 text-xs">
+              <User className="h-3.5 w-3.5 text-muted-foreground" /> Atendente responsável <span className="text-muted-foreground font-normal">(opcional)</span>
+            </Label>
+            <Input
+              id="agent-api"
+              value={agentName}
+              onChange={(e) => setAgentName(e.target.value)}
+              placeholder="Ex.: Mariana Souza"
+              disabled={mutation.isPending}
+            />
+          </div>
+
+          <div className="space-y-1.5">
+            <Label htmlFor="api-transcript" className="flex items-center gap-1.5 text-xs">
+              <FileText className="h-3.5 w-3.5 text-muted-foreground" /> Transcrição do provedor <span className="text-muted-foreground font-normal">(opcional — pula a transcrição por áudio)</span>
+            </Label>
+            <Textarea
+              id="api-transcript"
+              value={transcript}
+              onChange={(e) => setTranscript(e.target.value)}
+              placeholder="Se o provedor já entrega o speech-to-text, cole aqui para pular o download do áudio."
+              className="min-h-[120px] font-mono text-xs leading-relaxed"
+              disabled={mutation.isPending}
+            />
+          </div>
+
+          <div className="flex flex-wrap gap-2">
+            <Button onClick={() => mutation.mutate()} disabled={!canSubmit}>
+              {mutation.isPending ? (
+                <><Loader2 className="h-4 w-4 animate-spin" /> Recebendo e analisando…</>
+              ) : (
+                <><Plug className="h-4 w-4" /> Receber e analisar</>
+              )}
+            </Button>
+            {(recordingUrl || transcript || externalId || authHeader) && (
+              <Button
+                variant="ghost"
+                onClick={() => { setRecordingUrl(""); setTranscript(""); setExternalId(""); setAuthHeader(""); }}
+                disabled={mutation.isPending}
+              >
+                Limpar
+              </Button>
+            )}
+          </div>
+          {!hasUrl && !hasTranscript && (
+            <p className="text-xs text-muted-foreground">
+              Informe uma URL de gravação <strong>ou</strong> cole a transcrição do provedor para habilitar a análise.
+            </p>
+          )}
+          {mutation.isError && (
+            <p className="text-sm text-destructive">
+              Erro ao receber a ligação: {mutation.error instanceof Error ? mutation.error.message : "tente novamente."}
+            </p>
+          )}
+        </CardContent>
+      </Card>
+
+      <div>
+        {mutation.data ? (
+          <Results result={mutation.data} detailId={mutation.data.id} />
+        ) : (
+          <Card className="border-dashed">
+            <CardContent className="flex flex-col items-center justify-center text-center py-20 text-muted-foreground">
+              <Plug className="h-10 w-10 mb-3 opacity-40" />
+              <p className="text-sm">A ligação recebida do provedor será auditada aqui.</p>
+              <p className="text-xs mt-1">Cole a URL da gravação exposta pela API do contact center.</p>
+            </CardContent>
+          </Card>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function AnalyzePage() {
   return (
     <div className="space-y-6 max-w-[1400px] mx-auto">
@@ -476,12 +649,18 @@ function AnalyzePage() {
           <TabsTrigger value="texto" className="gap-1.5">
             <FileText className="h-4 w-4" /> Transcrição
           </TabsTrigger>
+          <TabsTrigger value="api" className="gap-1.5">
+            <Plug className="h-4 w-4" /> API de mercado
+          </TabsTrigger>
         </TabsList>
         <TabsContent value="audio" className="mt-6">
           <AudioBatchPanel />
         </TabsContent>
         <TabsContent value="texto" className="mt-6">
           <TextPanel />
+        </TabsContent>
+        <TabsContent value="api" className="mt-6">
+          <MarketApiPanel />
         </TabsContent>
       </Tabs>
     </div>

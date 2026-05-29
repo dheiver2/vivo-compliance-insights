@@ -11,7 +11,6 @@
 // mantendo as MESMAS assinaturas — o resto do módulo e as telas não mudam.
 
 import {
-  COMPLIANCE_CHECKLIST,
   statusFromScore,
   type CallAnalysis,
   type CallObservation,
@@ -19,6 +18,8 @@ import {
   type ComplianceCheck,
   type Sentiment,
 } from "../compliance";
+import { buildSeedCalls } from "./seed-calls.server";
+import { getActiveChecklistLabels } from "./monitoring-form.server";
 
 export type CallOrigin = "audio" | "texto";
 
@@ -106,13 +107,33 @@ async function getFileApi(): Promise<FileApi | null> {
 // que uma leitura veria o store ainda vazio enquanto outra ainda carrega).
 let loadPromise: Promise<void> | null = null;
 
+// Semeia o store com as 10 ligações de demonstração e persiste (best-effort).
+function seedStore(): void {
+  const { calls, nextSeq } = buildSeedCalls();
+  store.length = 0;
+  store.push(...calls);
+  seq = nextSeq;
+}
+
 function ensureLoaded(): Promise<void> {
   if (!loadPromise) {
     loadPromise = (async () => {
       const api = await getFileApi();
-      if (!api) return;
+      // Sem fs (ex.: Cloudflare Workers): isolate começa vazio. Semeia em
+      // memória para que a demo tenha dados desde o primeiro acesso.
+      if (!api) {
+        seedStore();
+        return;
+      }
       const raw = api.read();
-      if (!raw) return;
+      // Primeiro acesso (arquivo ainda não existe): semeia e persiste. Se o
+      // arquivo já existir — mesmo vazio, após uma limpeza explícita — respeita
+      // o conteúdo e NÃO semeia de novo.
+      if (raw === null) {
+        seedStore();
+        await persist();
+        return;
+      }
       try {
         const data = JSON.parse(raw) as { seq?: number; calls?: StoredCall[] };
         if (Array.isArray(data.calls)) {
@@ -222,6 +243,10 @@ export interface DashboardData {
     avgCompliance: KpiValue;
     avgQuality: KpiValue;
     criticalAlerts: KpiValue;
+    approvalRate: KpiValue; // % de ligações aprovadas
+    positiveRate: KpiValue; // % com sentimento positivo
+    activeAgents: KpiValue; // atendentes distintos monitorados
+    aiCoverage: KpiValue; // % analisado pela Mangaba AI (vs. fallback local)
   };
   dailyTrend: TrendPoint[];
   granularity: TrendGranularity;
@@ -317,6 +342,26 @@ export async function getDashboardData(granularity: TrendGranularity = "day"): P
   const critCur = last7.filter((c) => c.status === "critical").length;
   const critPrev = prev7.filter((c) => c.status === "critical").length;
 
+  // Percentual de uma lista que satisfaz um predicado (0-100, arredondado).
+  const rate = (list: StoredCall[], pred: (c: StoredCall) => boolean) =>
+    list.length ? Math.round((list.filter(pred).length / list.length) * 100) : 0;
+  const isApproved = (c: StoredCall) => c.status === "approved";
+  const isPositive = (c: StoredCall) => c.sentiment === "positivo";
+  const isAi = (c: StoredCall) => c.source === "huggingface";
+  const distinctAgents = (list: StoredCall[]) => new Set(list.map((c) => c.agentName)).size;
+
+  const approvalCur = rate(last7, isApproved);
+  const approvalPrev = rate(prev7, isApproved);
+  const positiveCur = rate(last7, isPositive);
+  const positivePrev = rate(prev7, isPositive);
+  const aiCur = rate(last7, isAi);
+  const aiPrev = rate(prev7, isAi);
+  const agentsCur = distinctAgents(last7);
+  const agentsPrev = distinctAgents(prev7);
+
+  // Rótulos da Ficha de Monitoria vigente (definida pelo analista).
+  const checklistLabels = await getActiveChecklistLabels();
+
   // Tendência na granularidade escolhida (hora, dia, semana ou mês).
   const dailyTrend = computeTrend(all, granularity);
 
@@ -327,8 +372,8 @@ export async function getDashboardData(granularity: TrendGranularity = "day"): P
     .map(([name, value]) => ({ name, value }))
     .sort((a, b) => b.value - a.value);
 
-  // Média por item da checklist regulatória (dado real dos checks).
-  const complianceItems = COMPLIANCE_CHECKLIST.map((label) => {
+  // Média por item da Ficha de Monitoria vigente (dado real dos checks).
+  const complianceItems = checklistLabels.map((label) => {
     const scores: number[] = [];
     for (const c of all) {
       const found = c.checks.find((k) => k.label === label);
@@ -364,6 +409,10 @@ export async function getDashboardData(granularity: TrendGranularity = "day"): P
       avgCompliance: { value: avg(all.map((c) => c.scoreCompliance)), delta: delta(compCur, compPrev) },
       avgQuality: { value: avg(all.map((c) => c.scoreQuality)), delta: delta(qualCur, qualPrev) },
       criticalAlerts: { value: all.filter((c) => c.status === "critical").length, delta: delta(critCur, critPrev) },
+      approvalRate: { value: rate(all, isApproved), delta: delta(approvalCur, approvalPrev) },
+      positiveRate: { value: rate(all, isPositive), delta: delta(positiveCur, positivePrev) },
+      activeAgents: { value: distinctAgents(all), delta: delta(agentsCur, agentsPrev) },
+      aiCoverage: { value: rate(all, isAi), delta: delta(aiCur, aiPrev) },
     },
     dailyTrend,
     granularity,
@@ -392,13 +441,13 @@ export interface AgentPerformance {
   weakestItem: { label: string; score: number } | null;
 }
 
-function summarizeAgent(name: string, calls: StoredCall[]): AgentPerformance {
+function summarizeAgent(name: string, calls: StoredCall[], labels: string[]): AgentPerformance {
   const sentiment = { positivo: 0, neutro: 0, negativo: 0 };
   for (const c of calls) sentiment[c.sentiment]++;
 
-  // Média por item da checklist para identificar o ponto mais fraco.
+  // Média por item da ficha para identificar o ponto mais fraco.
   let weakestItem: { label: string; score: number } | null = null;
-  for (const label of COMPLIANCE_CHECKLIST) {
+  for (const label of labels) {
     const scores: number[] = [];
     for (const c of calls) {
       const found = c.checks.find((k) => k.label === label);
@@ -430,6 +479,7 @@ function summarizeAgent(name: string, calls: StoredCall[]): AgentPerformance {
 // Ranking de todos os agentes, do maior para o menor score de compliance.
 export async function getAgentsPerformance(): Promise<AgentPerformance[]> {
   await ensureLoaded();
+  const labels = await getActiveChecklistLabels();
   const byAgent = new Map<string, StoredCall[]>();
   for (const c of store) {
     const list = byAgent.get(c.agentName) ?? [];
@@ -437,7 +487,7 @@ export async function getAgentsPerformance(): Promise<AgentPerformance[]> {
     byAgent.set(c.agentName, list);
   }
   return [...byAgent.entries()]
-    .map(([name, calls]) => summarizeAgent(name, calls))
+    .map(([name, calls]) => summarizeAgent(name, calls, labels))
     .sort((a, b) => b.avgCompliance - a.avgCompliance || b.calls - a.calls);
 }
 
@@ -455,7 +505,8 @@ export async function getAgentProfile(name: string): Promise<AgentProfile | null
   const calls = store.filter((c) => c.agentName === target);
   if (!calls.length) return null;
 
-  const checklistAverages = COMPLIANCE_CHECKLIST.map((label) => {
+  const labels = await getActiveChecklistLabels();
+  const checklistAverages = labels.map((label) => {
     const scores: number[] = [];
     for (const c of calls) {
       const found = c.checks.find((k) => k.label === label);
@@ -465,7 +516,7 @@ export async function getAgentProfile(name: string): Promise<AgentProfile | null
   });
 
   return {
-    performance: summarizeAgent(target, calls),
+    performance: summarizeAgent(target, calls, labels),
     checklistAverages,
     trend: computeTrend(calls, "day"),
     calls: calls.slice(), // já vem mais recente primeiro (store usa unshift)

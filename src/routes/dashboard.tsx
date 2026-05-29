@@ -7,7 +7,7 @@ import { StatusBadge } from "@/components/StatusBadge";
 import { getDashboard } from "@/lib/api/calls.functions";
 import { mangabaModelName } from "@/lib/mangaba";
 import type { DashboardData, TrendGranularity } from "@/lib/server/calls-store.server";
-import { TrendingUp, TrendingDown, Phone, ShieldCheck, Sparkles, AlertTriangle, Bot, Loader2 } from "lucide-react";
+import { TrendingUp, TrendingDown, Phone, ShieldCheck, Sparkles, AlertTriangle, Bot, Loader2, CheckCircle2, Smile, Users, Cpu } from "lucide-react";
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   PieChart, Pie, Cell, Legend,
@@ -126,6 +126,10 @@ function Dashboard() {
             <KpiCard icon={ShieldCheck} label="Compliance médio" value={data.kpis.avgCompliance.value} delta={data.kpis.avgCompliance.delta} suffix="%" />
             <KpiCard icon={Sparkles} label="Qualidade média" value={data.kpis.avgQuality.value} delta={data.kpis.avgQuality.delta} suffix="%" />
             <KpiCard icon={AlertTriangle} label="Alertas críticos" value={data.kpis.criticalAlerts.value} delta={data.kpis.criticalAlerts.delta} />
+            <KpiCard icon={CheckCircle2} label="Taxa de aprovação" value={data.kpis.approvalRate.value} delta={data.kpis.approvalRate.delta} suffix="%" />
+            <KpiCard icon={Smile} label="Sentimento positivo" value={data.kpis.positiveRate.value} delta={data.kpis.positiveRate.delta} suffix="%" />
+            <KpiCard icon={Users} label="Atendentes monitorados" value={data.kpis.activeAgents.value} delta={data.kpis.activeAgents.delta} />
+            <KpiCard icon={Cpu} label="Cobertura Mangaba AI" value={data.kpis.aiCoverage.value} delta={data.kpis.aiCoverage.delta} suffix="%" />
           </section>
 
           <section className="grid grid-cols-1 lg:grid-cols-3 gap-4">

@@ -1,5 +1,5 @@
 import { Link, useRouterState } from "@tanstack/react-router";
-import { LayoutDashboard, Phone, Bot, FileCheck, Settings, Headphones } from "lucide-react";
+import { LayoutDashboard, Phone, Bot, FileCheck, Settings, Headphones, Sparkles } from "lucide-react";
 import {
   Sidebar, SidebarContent, SidebarGroup, SidebarGroupContent, SidebarGroupLabel,
   SidebarMenu, SidebarMenuButton, SidebarMenuItem, SidebarHeader, useSidebar,
@@ -7,6 +7,7 @@ import {
 
 const items = [
   { title: "Dashboard", url: "/", icon: LayoutDashboard },
+  { title: "Análise IA", url: "/analyze", icon: Sparkles },
   { title: "Ligações", url: "/calls", icon: Phone },
   { title: "Agentes IA", url: "/agents", icon: Bot },
   { title: "Ficha de Monitoria", url: "/monitoring", icon: FileCheck },

@@ -5,8 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "vite dev",
-    "build": "vite build",
-    "build:dev": "vite build --mode development",
+    "build": "vite build && bun scripts/fix-vercel-runtime.mjs",
+    "build:dev": "vite build --mode development && bun scripts/fix-vercel-runtime.mjs",
     "preview": "vite preview",
     "lint": "eslint .",
     "format": "prettier --write ."

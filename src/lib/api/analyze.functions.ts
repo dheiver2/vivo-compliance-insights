@@ -8,6 +8,7 @@ import {
   type ComplianceCheck,
   type Sentiment,
 } from "../compliance";
+import { redactText } from "../pii";
 import { recordAnalysis } from "../server/calls-store.server";
 import {
   getActiveCriteria,
@@ -304,8 +305,11 @@ export const analyzeCall = createServerFn({ method: "POST" })
     }),
   )
   .handler(async ({ data }): Promise<StoredAnalysis> => {
-    const analysis = await analyzeTranscript(data.transcript);
-    const stored = await recordAnalysis({ analysis, origin: "texto", label: "Transcrição manual", transcript: data.transcript, agentName: data.agentName });
+    // LGPD: mascara PII (CPF, CNPJ, cartão, telefone, e-mail) ANTES de enviar à
+    // IA externa, persistir e exibir. O mesmo texto redigido flui por tudo.
+    const transcript = redactText(data.transcript);
+    const analysis = await analyzeTranscript(transcript);
+    const stored = await recordAnalysis({ analysis, origin: "texto", label: "Transcrição manual", transcript, agentName: data.agentName });
     return { ...analysis, id: stored.id, protocol: stored.protocol };
   });
 
@@ -464,6 +468,9 @@ export const analyzeCallFromUrl = createServerFn({ method: "POST" })
       throw new Error("Transcrição muito curta para auditar.");
     }
 
+    // LGPD: mascara PII antes de auditar, persistir e devolver ao cliente.
+    transcript = redactText(transcript);
+
     const analysis = await analyzeTranscript(transcript);
     // Origem "audio" quando veio de gravação; "texto" quando o provedor enviou
     // a transcrição pronta.
@@ -502,12 +509,14 @@ export const analyzeAudio = createServerFn({ method: "POST" })
     }
 
     const asrModel = process.env.HF_ASR_MODEL || DEFAULT_ASR_MODEL;
-    const transcript = await transcribeAudio(
+    const rawTranscript = await transcribeAudio(
       bytes,
       data.mimeType,
       token,
       asrModel,
     );
+    // LGPD: mascara PII pós-ASR antes de auditar, persistir e devolver.
+    const transcript = redactText(rawTranscript);
     const analysis = await analyzeTranscript(transcript);
     const stored = await recordAnalysis({ analysis, origin: "audio", label: data.filename, transcript, agentName: data.agentName });
 

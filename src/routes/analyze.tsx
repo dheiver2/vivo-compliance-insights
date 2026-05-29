@@ -13,7 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { analyzeCall, analyzeAudio, analyzeCallFromUrl, MARKET_PROVIDERS } from "@/lib/api/analyze.functions";
 import { SAMPLE_TRANSCRIPT, statusFromScore, type CallAnalysis } from "@/lib/compliance";
 import { mangabaSourceLabel } from "@/lib/mangaba";
-import { Sparkles, Wand2, FileText, CheckCircle2, XCircle, Cpu, Loader2, Smile, Meh, Frown, AudioLines, Upload, Trash2, ChevronDown, FileCheck, User, Plug, Link2, KeyRound } from "lucide-react";
+import { Sparkles, Wand2, FileText, CheckCircle2, XCircle, Cpu, Loader2, Smile, Meh, Frown, AudioLines, Upload, Trash2, ChevronDown, FileCheck, User, Plug, Link2, KeyRound, ShieldCheck } from "lucide-react";
 
 export const Route = createFileRoute("/analyze")({
   head: () => ({
@@ -638,6 +638,11 @@ function AnalyzePage() {
         <p className="text-sm text-muted-foreground mt-1">
           Envie áudios em lote ou cole uma transcrição — os agentes de IA avaliam compliance,
           qualidade e sentimento.
+        </p>
+        <p className="text-xs text-muted-foreground mt-2 inline-flex items-center gap-1.5 rounded-md bg-emerald-500/10 px-2 py-1 text-emerald-700 dark:text-emerald-400">
+          <ShieldCheck className="h-3.5 w-3.5" />
+          Proteção LGPD automática: CPF, CNPJ, cartão, telefone e e-mail são mascarados antes de
+          irem à IA, serem armazenados ou exibidos.
         </p>
       </header>
 

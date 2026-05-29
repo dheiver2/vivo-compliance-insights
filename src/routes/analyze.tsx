@@ -1,20 +1,24 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMutation } from "@tanstack/react-query";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Progress } from "@/components/ui/progress";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { StatusBadge } from "@/components/StatusBadge";
-import { analyzeCall } from "@/lib/api/analyze.functions";
+import { analyzeCall, analyzeAudio } from "@/lib/api/analyze.functions";
 import { SAMPLE_TRANSCRIPT, statusFromScore, type CallAnalysis } from "@/lib/compliance";
-import { Sparkles, Wand2, FileText, CheckCircle2, XCircle, Cpu, Loader2, Smile, Meh, Frown } from "lucide-react";
+import { mangabaSourceLabel } from "@/lib/mangaba";
+import { Sparkles, Wand2, FileText, CheckCircle2, XCircle, Cpu, Loader2, Smile, Meh, Frown, AudioLines, Upload, Trash2, ChevronDown, FileCheck, User } from "lucide-react";
 
 export const Route = createFileRoute("/analyze")({
   head: () => ({
     meta: [
       { title: "Análise IA · VoiceAudit" },
-      { name: "description", content: "Analise transcrições de ligações com IA da HuggingFace." },
+      { name: "description", content: "Analise transcrições de ligações com a IA da Mangaba AI." },
     ],
   }),
   component: AnalyzePage,
@@ -36,7 +40,7 @@ function ScoreTile({ label, score }: { label: string; score: number }) {
   );
 }
 
-function Results({ result }: { result: CallAnalysis }) {
+function Results({ result, detailId }: { result: CallAnalysis; detailId?: string }) {
   const Sent = sentimentMap[result.sentiment];
   return (
     <div className="space-y-4">
@@ -50,14 +54,19 @@ function Results({ result }: { result: CallAnalysis }) {
               </CardTitle>
               <CardDescription className="mt-1 flex items-center gap-1.5">
                 <Cpu className="h-3.5 w-3.5" />
-                {result.source === "huggingface"
-                  ? `HuggingFace · ${result.model}`
-                  : "Análise heurística local"}
+                {mangabaSourceLabel(result.source, result.model)}
               </CardDescription>
             </div>
-            <div className={`flex items-center gap-2 ${Sent.cls}`}>
-              <Sent.icon className="h-5 w-5" />
-              <span className="text-sm font-semibold">{Sent.label}</span>
+            <div className="flex items-center gap-4">
+              <div className={`flex items-center gap-2 ${Sent.cls}`}>
+                <Sent.icon className="h-5 w-5" />
+                <span className="text-sm font-semibold">{Sent.label}</span>
+              </div>
+              {detailId && (
+                <Link to="/calls/$callId" params={{ callId: detailId }} className="inline-flex items-center gap-1.5 rounded-md border border-border px-2.5 py-1 text-xs font-medium hover:bg-muted">
+                  <FileCheck className="h-3.5 w-3.5" /> Ver ficha
+                </Link>
+              )}
             </div>
           </div>
         </CardHeader>
@@ -127,12 +136,325 @@ function Results({ result }: { result: CallAnalysis }) {
   );
 }
 
-function AnalyzePage() {
+function TextPanel() {
   const [transcript, setTranscript] = useState("");
+  const [agentName, setAgentName] = useState("");
   const mutation = useMutation({
-    mutationFn: (text: string) => analyzeCall({ data: { transcript: text } }),
+    mutationFn: (text: string) => analyzeCall({ data: { transcript: text, agentName: agentName.trim() || undefined } }),
   });
 
+  return (
+    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <FileText className="h-4 w-4 text-primary" /> Transcrição
+          </CardTitle>
+          <CardDescription>Texto da gravação a ser auditada</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <div className="space-y-1.5">
+            <Label htmlFor="agent-text" className="flex items-center gap-1.5 text-xs">
+              <User className="h-3.5 w-3.5 text-muted-foreground" /> Atendente responsável <span className="text-muted-foreground font-normal">(opcional)</span>
+            </Label>
+            <Input
+              id="agent-text"
+              value={agentName}
+              onChange={(e) => setAgentName(e.target.value)}
+              placeholder="Ex.: Mariana Souza"
+              disabled={mutation.isPending}
+            />
+          </div>
+          <Textarea
+            value={transcript}
+            onChange={(e) => setTranscript(e.target.value)}
+            placeholder="Atendente: Vivo, bom dia!&#10;Cliente: ..."
+            className="min-h-[320px] font-mono text-xs leading-relaxed"
+          />
+          <div className="flex flex-wrap gap-2">
+            <Button
+              onClick={() => mutation.mutate(transcript)}
+              disabled={mutation.isPending || transcript.trim().length < 20}
+            >
+              {mutation.isPending ? (
+                <><Loader2 className="h-4 w-4 animate-spin" /> Analisando…</>
+              ) : (
+                <><Wand2 className="h-4 w-4" /> Analisar com IA</>
+              )}
+            </Button>
+            <Button variant="outline" onClick={() => setTranscript(SAMPLE_TRANSCRIPT)} disabled={mutation.isPending}>
+              Carregar amostra
+            </Button>
+            {transcript && (
+              <Button variant="ghost" onClick={() => setTranscript("")} disabled={mutation.isPending}>
+                Limpar
+              </Button>
+            )}
+          </div>
+          {mutation.isError && (
+            <p className="text-sm text-destructive">
+              Erro ao analisar: {mutation.error instanceof Error ? mutation.error.message : "tente novamente."}
+            </p>
+          )}
+        </CardContent>
+      </Card>
+
+      <div>
+        {mutation.data ? (
+          <Results result={mutation.data} detailId={mutation.data.id} />
+        ) : (
+          <Card className="border-dashed">
+            <CardContent className="flex flex-col items-center justify-center text-center py-20 text-muted-foreground">
+              <Sparkles className="h-10 w-10 mb-3 opacity-40" />
+              <p className="text-sm">O resultado da análise aparecerá aqui.</p>
+              <p className="text-xs mt-1">Cole uma transcrição ou carregue a amostra para começar.</p>
+            </CardContent>
+          </Card>
+        )}
+      </div>
+    </div>
+  );
+}
+
+type AudioStatus = "pendente" | "transcrevendo" | "analisando" | "ok" | "erro";
+
+type AudioJob = {
+  id: string;
+  file: File;
+  status: AudioStatus;
+  error?: string;
+  transcript?: string;
+  result?: CallAnalysis;
+  detailId?: string; // id do registro persistido (para link da ficha)
+};
+
+const statusMeta: Record<AudioStatus, { label: string; cls: string }> = {
+  pendente: { label: "Na fila", cls: "text-muted-foreground bg-secondary" },
+  transcrevendo: { label: "Transcrevendo…", cls: "text-primary bg-primary/10" },
+  analisando: { label: "Analisando…", cls: "text-primary bg-primary/10" },
+  ok: { label: "Concluído", cls: "text-success bg-success/10" },
+  erro: { label: "Erro", cls: "text-destructive bg-destructive/10" },
+};
+
+function fileToBase64(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const result = reader.result as string;
+      // data:<mime>;base64,<dados> → mantém só os dados.
+      const comma = result.indexOf(",");
+      resolve(comma >= 0 ? result.slice(comma + 1) : result);
+    };
+    reader.onerror = () => reject(reader.error ?? new Error("Falha ao ler arquivo."));
+    reader.readAsDataURL(file);
+  });
+}
+
+function formatBytes(n: number): string {
+  if (n < 1024) return `${n} B`;
+  if (n < 1024 * 1024) return `${(n / 1024).toFixed(0)} KB`;
+  return `${(n / 1024 / 1024).toFixed(1)} MB`;
+}
+
+function AudioJobCard({ job }: { job: AudioJob }) {
+  const [open, setOpen] = useState(false);
+  const meta = statusMeta[job.status];
+  const busy = job.status === "transcrevendo" || job.status === "analisando";
+
+  return (
+    <Card>
+      <CardHeader className="pb-3">
+        <div className="flex items-start justify-between gap-3 flex-wrap">
+          <div className="min-w-0">
+            <CardTitle className="text-base flex items-center gap-2 truncate">
+              <AudioLines className="h-4 w-4 text-primary flex-shrink-0" />
+              <span className="truncate">{job.file.name}</span>
+            </CardTitle>
+            <CardDescription className="mt-0.5">
+              {formatBytes(job.file.size)}
+              {job.file.type ? ` · ${job.file.type}` : ""}
+            </CardDescription>
+          </div>
+          <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium ${meta.cls}`}>
+            {busy && <Loader2 className="h-3 w-3 animate-spin" />}
+            {job.status === "ok" && job.result && (
+              <StatusBadge status={statusFromScore(job.result.scoreCompliance)} />
+            )}
+            {meta.label}
+          </span>
+        </div>
+      </CardHeader>
+
+      {job.status === "erro" && (
+        <CardContent className="pt-0">
+          <p className="text-sm text-destructive">{job.error ?? "Falha ao processar."}</p>
+        </CardContent>
+      )}
+
+      {job.status === "ok" && job.result && (
+        <CardContent className="pt-0 space-y-4">
+          <Results result={job.result} detailId={job.detailId} />
+          {job.transcript && (
+            <div className="rounded-lg border border-border/60">
+              <button
+                type="button"
+                onClick={() => setOpen((v) => !v)}
+                className="flex w-full items-center justify-between px-3 py-2 text-sm font-medium"
+              >
+                <span className="flex items-center gap-2">
+                  <FileText className="h-4 w-4 text-muted-foreground" /> Transcrição
+                </span>
+                <ChevronDown className={`h-4 w-4 transition-transform ${open ? "rotate-180" : ""}`} />
+              </button>
+              {open && (
+                <pre className="max-h-64 overflow-auto whitespace-pre-wrap border-t border-border/60 p-3 font-mono text-xs leading-relaxed text-muted-foreground">
+                  {job.transcript}
+                </pre>
+              )}
+            </div>
+          )}
+        </CardContent>
+      )}
+    </Card>
+  );
+}
+
+function AudioBatchPanel() {
+  const [jobs, setJobs] = useState<AudioJob[]>([]);
+  const [running, setRunning] = useState(false);
+  const [agentName, setAgentName] = useState("");
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  const update = (id: string, patch: Partial<AudioJob>) =>
+    setJobs((prev) => prev.map((j) => (j.id === id ? { ...j, ...patch } : j)));
+
+  const addFiles = (files: FileList | null) => {
+    if (!files?.length) return;
+    const next: AudioJob[] = Array.from(files).map((file) => ({
+      id: `${file.name}-${file.size}-${file.lastModified}-${Math.random().toString(36).slice(2, 8)}`,
+      file,
+      status: "pendente",
+    }));
+    setJobs((prev) => [...prev, ...next]);
+  };
+
+  const runAll = async () => {
+    const pending = jobs.filter((j) => j.status === "pendente" || j.status === "erro");
+    if (!pending.length) return;
+    setRunning(true);
+    // Processa sequencialmente para não estourar a API de inferência.
+    for (const job of pending) {
+      try {
+        update(job.id, { status: "transcrevendo", error: undefined });
+        const base64 = await fileToBase64(job.file);
+        update(job.id, { status: "analisando" });
+        const res = await analyzeAudio({
+          data: { filename: job.file.name, mimeType: job.file.type, base64, agentName: agentName.trim() || undefined },
+        });
+        const { transcript, filename: _filename, id, protocol: _protocol, ...analysis } = res;
+        update(job.id, { status: "ok", result: analysis as CallAnalysis, transcript, detailId: id });
+      } catch (error) {
+        update(job.id, {
+          status: "erro",
+          error: error instanceof Error ? error.message : "Falha ao processar áudio.",
+        });
+      }
+    }
+    setRunning(false);
+  };
+
+  const pendingCount = jobs.filter((j) => j.status === "pendente").length;
+  const doneCount = jobs.filter((j) => j.status === "ok").length;
+
+  return (
+    <div className="space-y-6">
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <AudioLines className="h-4 w-4 text-primary" /> Áudios em lote
+          </CardTitle>
+          <CardDescription>
+            Envie vários arquivos (mp3, wav, m4a, ogg, flac, webm…). Cada um é transcrito pelo
+            Mangaba Voz e auditado pelos agentes Mangaba AI. Limite de 25 MB por arquivo.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="space-y-1.5">
+            <Label htmlFor="agent-audio" className="flex items-center gap-1.5 text-xs">
+              <User className="h-3.5 w-3.5 text-muted-foreground" /> Atendente responsável <span className="text-muted-foreground font-normal">(opcional — aplicado a todos os áudios deste lote)</span>
+            </Label>
+            <Input
+              id="agent-audio"
+              value={agentName}
+              onChange={(e) => setAgentName(e.target.value)}
+              placeholder="Ex.: Mariana Souza"
+              disabled={running}
+            />
+          </div>
+          <button
+            type="button"
+            onClick={() => inputRef.current?.click()}
+            className="flex w-full flex-col items-center justify-center gap-2 rounded-lg border-2 border-dashed border-border/70 py-10 text-muted-foreground transition-colors hover:border-primary/50 hover:text-foreground"
+          >
+            <Upload className="h-8 w-8 opacity-60" />
+            <span className="text-sm font-medium">Clique para selecionar arquivos de áudio</span>
+            <span className="text-xs">ou múltiplos de uma vez</span>
+          </button>
+          <input
+            ref={inputRef}
+            type="file"
+            accept="audio/*,.mp3,.wav,.m4a,.ogg,.flac,.webm,.aac"
+            multiple
+            className="hidden"
+            onChange={(e) => {
+              addFiles(e.target.files);
+              e.target.value = "";
+            }}
+          />
+
+          {jobs.length > 0 && (
+            <div className="flex flex-wrap items-center gap-2">
+              <Button onClick={runAll} disabled={running || pendingCount === 0}>
+                {running ? (
+                  <><Loader2 className="h-4 w-4 animate-spin" /> Processando…</>
+                ) : (
+                  <><Wand2 className="h-4 w-4" /> Analisar {pendingCount > 0 ? `(${pendingCount})` : "lote"}</>
+                )}
+              </Button>
+              <Button
+                variant="ghost"
+                onClick={() => setJobs([])}
+                disabled={running}
+              >
+                <Trash2 className="h-4 w-4" /> Limpar lista
+              </Button>
+              <span className="ml-auto text-xs text-muted-foreground">
+                {jobs.length} arquivo(s) · {doneCount} concluído(s)
+              </span>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {jobs.length === 0 ? (
+        <Card className="border-dashed">
+          <CardContent className="flex flex-col items-center justify-center py-16 text-center text-muted-foreground">
+            <AudioLines className="h-10 w-10 mb-3 opacity-40" />
+            <p className="text-sm">Os resultados de cada áudio aparecerão aqui.</p>
+          </CardContent>
+        </Card>
+      ) : (
+        <div className="space-y-4">
+          {jobs.map((job) => (
+            <AudioJobCard key={job.id} job={job} />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function AnalyzePage() {
   return (
     <div className="space-y-6 max-w-[1400px] mx-auto">
       <header>
@@ -141,67 +463,27 @@ function AnalyzePage() {
           Análise de Ligação com IA
         </h1>
         <p className="text-sm text-muted-foreground mt-1">
-          Cole a transcrição de uma ligação e os agentes de IA avaliam compliance, qualidade e sentimento.
+          Envie áudios em lote ou cole uma transcrição — os agentes de IA avaliam compliance,
+          qualidade e sentimento.
         </p>
       </header>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <FileText className="h-4 w-4 text-primary" /> Transcrição
-            </CardTitle>
-            <CardDescription>Texto da gravação a ser auditada</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <Textarea
-              value={transcript}
-              onChange={(e) => setTranscript(e.target.value)}
-              placeholder="Atendente: Vivo, bom dia!&#10;Cliente: ..."
-              className="min-h-[320px] font-mono text-xs leading-relaxed"
-            />
-            <div className="flex flex-wrap gap-2">
-              <Button
-                onClick={() => mutation.mutate(transcript)}
-                disabled={mutation.isPending || transcript.trim().length < 20}
-              >
-                {mutation.isPending ? (
-                  <><Loader2 className="h-4 w-4 animate-spin" /> Analisando…</>
-                ) : (
-                  <><Wand2 className="h-4 w-4" /> Analisar com IA</>
-                )}
-              </Button>
-              <Button variant="outline" onClick={() => setTranscript(SAMPLE_TRANSCRIPT)} disabled={mutation.isPending}>
-                Carregar amostra
-              </Button>
-              {transcript && (
-                <Button variant="ghost" onClick={() => setTranscript("")} disabled={mutation.isPending}>
-                  Limpar
-                </Button>
-              )}
-            </div>
-            {mutation.isError && (
-              <p className="text-sm text-destructive">
-                Erro ao analisar: {mutation.error instanceof Error ? mutation.error.message : "tente novamente."}
-              </p>
-            )}
-          </CardContent>
-        </Card>
-
-        <div>
-          {mutation.data ? (
-            <Results result={mutation.data} />
-          ) : (
-            <Card className="border-dashed">
-              <CardContent className="flex flex-col items-center justify-center text-center py-20 text-muted-foreground">
-                <Sparkles className="h-10 w-10 mb-3 opacity-40" />
-                <p className="text-sm">O resultado da análise aparecerá aqui.</p>
-                <p className="text-xs mt-1">Cole uma transcrição ou carregue a amostra para começar.</p>
-              </CardContent>
-            </Card>
-          )}
-        </div>
-      </div>
+      <Tabs defaultValue="audio" className="w-full">
+        <TabsList>
+          <TabsTrigger value="audio" className="gap-1.5">
+            <AudioLines className="h-4 w-4" /> Áudio em lote
+          </TabsTrigger>
+          <TabsTrigger value="texto" className="gap-1.5">
+            <FileText className="h-4 w-4" /> Transcrição
+          </TabsTrigger>
+        </TabsList>
+        <TabsContent value="audio" className="mt-6">
+          <AudioBatchPanel />
+        </TabsContent>
+        <TabsContent value="texto" className="mt-6">
+          <TextPanel />
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }

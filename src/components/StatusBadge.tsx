@@ -1,4 +1,4 @@
-import type { CallStatus } from "@/lib/mock-data";
+import type { CallStatus } from "@/lib/compliance";
 import { cn } from "@/lib/utils";
 
 const map: Record<CallStatus, { label: string; cls: string }> = {

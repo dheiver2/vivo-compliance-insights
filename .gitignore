@@ -16,6 +16,9 @@ dist-ssr
 .nitro
 *.local
 
+# Dados persistidos localmente (store de análises em dev)
+.data/
+
 # Env / secrets
 .env
 .env.*

@@ -1,5 +1,5 @@
 import { Link, useRouterState } from "@tanstack/react-router";
-import { LayoutDashboard, Phone, Bot, FileCheck, Settings, Headphones, Sparkles } from "lucide-react";
+import { LayoutDashboard, Phone, Bot, FileCheck, Settings, Headphones, Sparkles, Users } from "lucide-react";
 import {
   Sidebar, SidebarContent, SidebarGroup, SidebarGroupContent, SidebarGroupLabel,
   SidebarMenu, SidebarMenuButton, SidebarMenuItem, SidebarHeader, useSidebar,
@@ -10,6 +10,7 @@ const items = [
   { title: "Dashboard", url: "/dashboard", icon: LayoutDashboard },
   { title: "Análise IA", url: "/analyze", icon: Sparkles },
   { title: "Ligações", url: "/calls", icon: Phone },
+  { title: "Equipe", url: "/team", icon: Users },
   { title: "Agentes IA", url: "/agents", icon: Bot },
   { title: "Ficha de Monitoria", url: "/monitoring", icon: FileCheck },
 ];
@@ -61,9 +62,11 @@ export function AppSidebar() {
           <SidebarGroupContent>
             <SidebarMenu>
               <SidebarMenuItem>
-                <SidebarMenuButton>
-                  <Settings className="h-4 w-4" />
-                  {!collapsed && <span>Configurações</span>}
+                <SidebarMenuButton asChild isActive={path === "/settings"}>
+                  <Link to="/settings" className="flex items-center gap-2">
+                    <Settings className="h-4 w-4" />
+                    {!collapsed && <span>Configurações</span>}
+                  </Link>
                 </SidebarMenuButton>
               </SidebarMenuItem>
             </SidebarMenu>

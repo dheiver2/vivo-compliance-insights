@@ -17,9 +17,9 @@ export const Route = createFileRoute("/")({
 
 const features = [
   { icon: ShieldCheck, title: "Compliance regulatório", desc: "Verificação automática de identificação, aviso de gravação, consentimento LGPD e comunicação de custos em cada ligação." },
-  { icon: Sparkles, title: "Análise por IA", desc: "Modelos de linguagem da HuggingFace avaliam transcrições e geram scores de compliance, qualidade e sentimento." },
+  { icon: Sparkles, title: "Análise por IA", desc: "Os modelos Mangaba AI avaliam transcrições e geram scores de compliance, qualidade e sentimento." },
   { icon: Gauge, title: "Score em tempo real", desc: "Dashboards com evolução semanal, distribuição por tema e alertas críticos atualizados ao vivo." },
-  { icon: Bot, title: "Agentes especializados", desc: "Compliance-Bot, Quality-Bot, Sales-Bot e Sentiment-Bot trabalham em paralelo em cada gravação." },
+  { icon: Bot, title: "Agentes especializados", desc: "Os agentes Mangaba Compliance, Mangaba Qualidade e Mangaba Sentimento trabalham em paralelo em cada gravação." },
   { icon: FileCheck, title: "Ficha de monitoria", desc: "Relatório detalhado por chamada com evidências, trechos relevantes e severidade das observações." },
   { icon: Lock, title: "Privacidade por padrão", desc: "Tokens e dados sensíveis tratados no servidor — nada de segredos no navegador." },
 ];
@@ -74,8 +74,12 @@ function Landing() {
         <div className="absolute -top-24 -right-24 h-96 w-96 rounded-full bg-primary-glow/30 blur-3xl" />
         <div className="absolute -bottom-32 -left-24 h-96 w-96 rounded-full bg-primary/20 blur-3xl" />
         <div className="relative mx-auto max-w-6xl px-4 py-24 text-center md:py-32">
+          <div className="mx-auto mb-8 flex flex-col items-center gap-3">
+            <VivoLogo className="h-16 w-auto text-white drop-shadow-[0_0_30px_rgba(255,255,255,0.35)] md:h-24" />
+            <span className="text-[11px] font-semibold uppercase tracking-[0.35em] text-white/60">Compliance &amp; Qualidade</span>
+          </div>
           <div className="mx-auto mb-6 inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/5 px-4 py-1.5 text-xs font-medium text-white/80 backdrop-blur">
-            <Sparkles className="h-3.5 w-3.5" /> Powered by HuggingFace · LLMs de última geração
+            <Sparkles className="h-3.5 w-3.5" /> Powered by Mangaba AI · LLMs de última geração
           </div>
           <h1 className="mx-auto max-w-3xl font-display text-4xl font-bold leading-tight text-white md:text-6xl">
             Audite <span className="bg-gradient-to-r from-white to-primary-glow bg-clip-text text-transparent">100% das ligações</span> com inteligência artificial
@@ -159,14 +163,14 @@ function Landing() {
             <span className="text-xs font-semibold uppercase tracking-widest text-primary">Análise de IA</span>
             <h2 className="mt-2 font-display text-3xl font-bold md:text-4xl">Compliance avaliado por modelos de linguagem</h2>
             <p className="mt-4 text-muted-foreground">
-              Cole a transcrição de uma ligação e receba, em segundos, uma ficha de monitoria completa gerada por LLMs servidos pela HuggingFace.
+              Cole a transcrição de uma ligação e receba, em segundos, uma ficha de monitoria completa gerada pela Mangaba AI.
             </p>
             <ul className="mt-6 space-y-3">
               {[
                 "Checklist regulatória com evidências por item",
                 "Score de compliance e qualidade de 0 a 100",
                 "Detecção de sentimento e pontos de atrito",
-                "Fallback heurístico local quando offline",
+                "Mangaba Básico local quando offline",
               ].map((item) => (
                 <li key={item} className="flex items-start gap-3 text-sm">
                   <span className="mt-0.5 inline-flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full bg-success/15 text-success">

@@ -2,6 +2,7 @@
 
 export type Severity = "ok" | "warning" | "critical";
 export type Sentiment = "positivo" | "neutro" | "negativo";
+export type CallStatus = "approved" | "warning" | "critical" | "processing";
 
 export interface ComplianceCheck {
   label: string;

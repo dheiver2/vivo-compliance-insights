@@ -9,13 +9,22 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as MonitoringRouteImport } from './routes/monitoring'
 import { Route as DashboardRouteImport } from './routes/dashboard'
-import { Route as CallsRouteImport } from './routes/calls'
 import { Route as AnalyzeRouteImport } from './routes/analyze'
 import { Route as AgentsRouteImport } from './routes/agents'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as TeamIndexRouteImport } from './routes/team.index'
+import { Route as CallsIndexRouteImport } from './routes/calls.index'
+import { Route as TeamAgentNameRouteImport } from './routes/team.$agentName'
+import { Route as CallsCallIdRouteImport } from './routes/calls.$callId'
 
+const SettingsRoute = SettingsRouteImport.update({
+  id: '/settings',
+  path: '/settings',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const MonitoringRoute = MonitoringRouteImport.update({
   id: '/monitoring',
   path: '/monitoring',
@@ -24,11 +33,6 @@ const MonitoringRoute = MonitoringRouteImport.update({
 const DashboardRoute = DashboardRouteImport.update({
   id: '/dashboard',
   path: '/dashboard',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const CallsRoute = CallsRouteImport.update({
-  id: '/calls',
-  path: '/calls',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AnalyzeRoute = AnalyzeRouteImport.update({
@@ -46,31 +50,63 @@ const IndexRoute = IndexRouteImport.update({
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const TeamIndexRoute = TeamIndexRouteImport.update({
+  id: '/team/',
+  path: '/team/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const CallsIndexRoute = CallsIndexRouteImport.update({
+  id: '/calls/',
+  path: '/calls/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const TeamAgentNameRoute = TeamAgentNameRouteImport.update({
+  id: '/team/$agentName',
+  path: '/team/$agentName',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const CallsCallIdRoute = CallsCallIdRouteImport.update({
+  id: '/calls/$callId',
+  path: '/calls/$callId',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/agents': typeof AgentsRoute
   '/analyze': typeof AnalyzeRoute
-  '/calls': typeof CallsRoute
   '/dashboard': typeof DashboardRoute
   '/monitoring': typeof MonitoringRoute
+  '/settings': typeof SettingsRoute
+  '/calls/$callId': typeof CallsCallIdRoute
+  '/team/$agentName': typeof TeamAgentNameRoute
+  '/calls/': typeof CallsIndexRoute
+  '/team/': typeof TeamIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/agents': typeof AgentsRoute
   '/analyze': typeof AnalyzeRoute
-  '/calls': typeof CallsRoute
   '/dashboard': typeof DashboardRoute
   '/monitoring': typeof MonitoringRoute
+  '/settings': typeof SettingsRoute
+  '/calls/$callId': typeof CallsCallIdRoute
+  '/team/$agentName': typeof TeamAgentNameRoute
+  '/calls': typeof CallsIndexRoute
+  '/team': typeof TeamIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/agents': typeof AgentsRoute
   '/analyze': typeof AnalyzeRoute
-  '/calls': typeof CallsRoute
   '/dashboard': typeof DashboardRoute
   '/monitoring': typeof MonitoringRoute
+  '/settings': typeof SettingsRoute
+  '/calls/$callId': typeof CallsCallIdRoute
+  '/team/$agentName': typeof TeamAgentNameRoute
+  '/calls/': typeof CallsIndexRoute
+  '/team/': typeof TeamIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -78,32 +114,61 @@ export interface FileRouteTypes {
     | '/'
     | '/agents'
     | '/analyze'
-    | '/calls'
     | '/dashboard'
     | '/monitoring'
+    | '/settings'
+    | '/calls/$callId'
+    | '/team/$agentName'
+    | '/calls/'
+    | '/team/'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/agents' | '/analyze' | '/calls' | '/dashboard' | '/monitoring'
+  to:
+    | '/'
+    | '/agents'
+    | '/analyze'
+    | '/dashboard'
+    | '/monitoring'
+    | '/settings'
+    | '/calls/$callId'
+    | '/team/$agentName'
+    | '/calls'
+    | '/team'
   id:
     | '__root__'
     | '/'
     | '/agents'
     | '/analyze'
-    | '/calls'
     | '/dashboard'
     | '/monitoring'
+    | '/settings'
+    | '/calls/$callId'
+    | '/team/$agentName'
+    | '/calls/'
+    | '/team/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AgentsRoute: typeof AgentsRoute
   AnalyzeRoute: typeof AnalyzeRoute
-  CallsRoute: typeof CallsRoute
   DashboardRoute: typeof DashboardRoute
   MonitoringRoute: typeof MonitoringRoute
+  SettingsRoute: typeof SettingsRoute
+  CallsCallIdRoute: typeof CallsCallIdRoute
+  TeamAgentNameRoute: typeof TeamAgentNameRoute
+  CallsIndexRoute: typeof CallsIndexRoute
+  TeamIndexRoute: typeof TeamIndexRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/settings': {
+      id: '/settings'
+      path: '/settings'
+      fullPath: '/settings'
+      preLoaderRoute: typeof SettingsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/monitoring': {
       id: '/monitoring'
       path: '/monitoring'
@@ -116,13 +181,6 @@ declare module '@tanstack/react-router' {
       path: '/dashboard'
       fullPath: '/dashboard'
       preLoaderRoute: typeof DashboardRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/calls': {
-      id: '/calls'
-      path: '/calls'
-      fullPath: '/calls'
-      preLoaderRoute: typeof CallsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/analyze': {
@@ -146,6 +204,34 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/team/': {
+      id: '/team/'
+      path: '/team'
+      fullPath: '/team/'
+      preLoaderRoute: typeof TeamIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/calls/': {
+      id: '/calls/'
+      path: '/calls'
+      fullPath: '/calls/'
+      preLoaderRoute: typeof CallsIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/team/$agentName': {
+      id: '/team/$agentName'
+      path: '/team/$agentName'
+      fullPath: '/team/$agentName'
+      preLoaderRoute: typeof TeamAgentNameRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/calls/$callId': {
+      id: '/calls/$callId'
+      path: '/calls/$callId'
+      fullPath: '/calls/$callId'
+      preLoaderRoute: typeof CallsCallIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -153,9 +239,13 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AgentsRoute: AgentsRoute,
   AnalyzeRoute: AnalyzeRoute,
-  CallsRoute: CallsRoute,
   DashboardRoute: DashboardRoute,
   MonitoringRoute: MonitoringRoute,
+  SettingsRoute: SettingsRoute,
+  CallsCallIdRoute: CallsCallIdRoute,
+  TeamAgentNameRoute: TeamAgentNameRoute,
+  CallsIndexRoute: CallsIndexRoute,
+  TeamIndexRoute: TeamIndexRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

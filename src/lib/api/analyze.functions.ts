@@ -283,6 +283,44 @@ async function transcribeAudio(
   return text;
 }
 
+// Baixa uma gravação por HTTP (server-side) e devolve os bytes + content-type,
+// aplicando os mesmos limites defensivos de tamanho do upload manual. Usado tanto
+// pela ingestão genérica (API de mercado) quanto pela integração 3C Plus.
+async function downloadRecording(
+  url: string,
+  headers: Record<string, string> = {},
+): Promise<{ bytes: Uint8Array; contentType: string }> {
+  let res: Response;
+  try {
+    res = await fetch(url, { headers });
+  } catch (error) {
+    throw new Error(
+      `Não foi possível acessar a gravação: ${
+        error instanceof Error ? error.message : "erro de rede"
+      }`,
+    );
+  }
+  if (!res.ok) {
+    throw new Error(
+      `O provedor retornou ${res.status} ao baixar a gravação. Verifique a URL e a autorização.`,
+    );
+  }
+  const contentType = res.headers.get("content-type") || "application/octet-stream";
+  const buffer = await res.arrayBuffer();
+  const bytes = new Uint8Array(buffer);
+  if (bytes.byteLength === 0) {
+    throw new Error("A gravação baixada está vazia.");
+  }
+  if (bytes.byteLength > MAX_AUDIO_BYTES) {
+    throw new Error(
+      `Gravação muito grande (${(bytes.byteLength / 1024 / 1024).toFixed(1)} MB). Limite: ${
+        MAX_AUDIO_BYTES / 1024 / 1024
+      } MB.`,
+    );
+  }
+  return { bytes, contentType };
+}
+
 // Decodifica base64 para bytes de forma cross-runtime (Node/Workers).
 function base64ToBytes(base64: string): Uint8Array {
   const binary = atob(base64);
@@ -430,36 +468,7 @@ export const analyzeCallFromUrl = createServerFn({ method: "POST" })
       const headers: Record<string, string> = {};
       if (data.authHeader.trim()) headers.Authorization = data.authHeader.trim();
 
-      let res: Response;
-      try {
-        res = await fetch(data.recordingUrl, { headers });
-      } catch (error) {
-        throw new Error(
-          `Não foi possível acessar a gravação no provedor: ${
-            error instanceof Error ? error.message : "erro de rede"
-          }`,
-        );
-      }
-      if (!res.ok) {
-        throw new Error(
-          `Provedor retornou ${res.status} ao baixar a gravação. Verifique a URL e a autorização.`,
-        );
-      }
-
-      const contentType = res.headers.get("content-type") || "application/octet-stream";
-      const buffer = await res.arrayBuffer();
-      const bytes = new Uint8Array(buffer);
-      if (bytes.byteLength === 0) {
-        throw new Error("A gravação baixada do provedor está vazia.");
-      }
-      if (bytes.byteLength > MAX_AUDIO_BYTES) {
-        throw new Error(
-          `Gravação muito grande (${(bytes.byteLength / 1024 / 1024).toFixed(1)} MB). Limite: ${
-            MAX_AUDIO_BYTES / 1024 / 1024
-          } MB.`,
-        );
-      }
-
+      const { bytes, contentType } = await downloadRecording(data.recordingUrl, headers);
       const asrModel = process.env.HF_ASR_MODEL || DEFAULT_ASR_MODEL;
       transcript = await transcribeAudio(bytes, contentType, token, asrModel);
     }
@@ -521,4 +530,184 @@ export const analyzeAudio = createServerFn({ method: "POST" })
     const stored = await recordAnalysis({ analysis, origin: "audio", label: data.filename, transcript, agentName: data.agentName });
 
     return { ...analysis, transcript, filename: data.filename, id: stored.id, protocol: stored.protocol };
+  });
+
+// ===========================================================================
+// Integração nativa com a 3C Plus (discador 3C+ V2 / FluxoTI).
+//
+// É de lá que vêm as gravações de atendentes e clientes. A API V2 expõe:
+//   - GET /calls                         → relatório de ligações (filtrável)
+//   - GET /calls/{id}                    → relatório de uma ligação
+//   - GET /calls/{id}/recording          → baixa o áudio da gravação
+// Autenticação: parâmetro de querystring `api_token` (apiKey). Ref.:
+// https://app.3c.plus/api/v1/swagger.json
+//
+// O token é um SEGREDO: fica em THREECPLUS_API_TOKEN no servidor (env), nunca no
+// bundle do cliente. Para testes pontuais, aceita-se um override por requisição.
+// ===========================================================================
+
+const THREECPLUS_BASE = "https://3c.fluxoti.com/api/v1";
+
+// Resolve o token 3C Plus: prioriza o override da requisição (testes) e cai no
+// segredo do servidor. Lança erro claro quando nenhum está disponível.
+function resolveThreeCplusToken(override?: string): string {
+  const token = (override ?? "").trim() || process.env.THREECPLUS_API_TOKEN || "";
+  if (!token) {
+    throw new Error(
+      "Token da 3C Plus ausente. Defina THREECPLUS_API_TOKEN no servidor ou informe o token na requisição.",
+    );
+  }
+  return token;
+}
+
+// Acrescenta o api_token à URL sem duplicar query existente.
+function withApiToken(url: string, token: string): string {
+  return url + (url.includes("?") ? "&" : "?") + "api_token=" + encodeURIComponent(token);
+}
+
+// Mascara o telefone preservando os 4 últimos dígitos (metadado LGPD-friendly).
+function maskPhone(num: string): string {
+  const digits = (num ?? "").replace(/\D/g, "");
+  if (digits.length < 4) return num ? "••••" : "";
+  return "••••" + digits.slice(-4);
+}
+
+// Faz GET autenticado na API 3C Plus e devolve o JSON já desembrulhado quando a
+// resposta vem no padrão Laravel `{ data: ... }`.
+async function threeCplusGet<T>(path: string, token: string): Promise<T> {
+  const url = withApiToken(`${THREECPLUS_BASE}${path}`, token);
+  let res: Response;
+  try {
+    res = await fetch(url, { headers: { Accept: "application/json" } });
+  } catch (error) {
+    throw new Error(
+      `Falha ao acessar a 3C Plus: ${error instanceof Error ? error.message : "erro de rede"}`,
+    );
+  }
+  if (!res.ok) {
+    const detail = await res.text().catch(() => "");
+    throw new Error(`3C Plus ${res.status}: ${detail.slice(0, 200)}`);
+  }
+  const payload = (await res.json()) as { data?: T } & T;
+  return (payload?.data ?? payload) as T;
+}
+
+// Item enxuto de ligação 3C Plus exposto à UI (telefone já mascarado).
+export interface ThreeCplusCall {
+  id: string;
+  sid: string;
+  agent: string;
+  number: string; // mascarado (••••1234)
+  callDate: string;
+  campaign: string;
+  queueName: string;
+  recorded: boolean;
+}
+
+// Formato bruto (parcial) do CallHistoryReport da 3C Plus.
+interface ThreeCplusReport {
+  id?: string | number;
+  sid?: string;
+  agent?: string;
+  has_agent?: boolean;
+  number?: string;
+  call_date?: string;
+  call_date_rfc3339?: string;
+  campaign?: string;
+  queue_name?: string;
+  recorded?: boolean;
+  recording?: string;
+}
+
+function toThreeCplusCall(r: ThreeCplusReport): ThreeCplusCall {
+  return {
+    id: String(r.id ?? r.sid ?? ""),
+    sid: r.sid ?? "",
+    agent: r.agent || "",
+    number: maskPhone(r.number ?? ""),
+    callDate: r.call_date_rfc3339 || r.call_date || "",
+    campaign: r.campaign || "",
+    queueName: r.queue_name || "",
+    recorded: Boolean(r.recorded),
+  };
+}
+
+const ListThreeCplusInput = z.object({
+  // Janela de datas no formato exigido pela 3C Plus (Y-m-d H:i:s).
+  startDate: z.string().min(1, "Informe a data inicial (AAAA-MM-DD)."),
+  endDate: z.string().optional().default(""),
+  perPage: z.number().int().positive().max(200).optional().default(50),
+  apiToken: z.string().optional().default(""),
+});
+
+// Lista as ligações da 3C Plus numa janela de datas (somente leitura), para que
+// o analista escolha quais gravações auditar.
+export const listThreeCplusCalls = createServerFn({ method: "GET" })
+  .inputValidator(ListThreeCplusInput)
+  .handler(async ({ data }): Promise<ThreeCplusCall[]> => {
+    const token = resolveThreeCplusToken(data.apiToken);
+    const params = new URLSearchParams({
+      start_date: data.startDate,
+      per_page: String(data.perPage),
+      with_mailing: "false",
+    });
+    if (data.endDate.trim()) params.set("end_date", data.endDate.trim());
+    const reports = await threeCplusGet<ThreeCplusReport[]>(`/calls?${params.toString()}`, token);
+    const list = Array.isArray(reports) ? reports : [];
+    return list.map(toThreeCplusCall);
+  });
+
+const AnalyzeThreeCplusInput = z.object({
+  callId: z.string().min(1, "Informe o ID (ou SID) da ligação na 3C Plus."),
+  agentName: z.string().optional(),
+  apiToken: z.string().optional().default(""),
+});
+
+// Busca uma ligação na 3C Plus, baixa a gravação, transcreve (Mangaba Voz),
+// mascara PII (LGPD) e roda a auditoria — persistindo no store como as demais.
+export const analyzeThreeCplusCall = createServerFn({ method: "POST" })
+  .inputValidator(AnalyzeThreeCplusInput)
+  .handler(async ({ data }): Promise<IngestAnalysis> => {
+    const token = resolveThreeCplusToken(data.apiToken);
+
+    // Relatório da ligação (best-effort): enriquece atendente/sid e confirma
+    // que há gravação. Se falhar, seguimos só com o callId.
+    let report: ThreeCplusReport | null = null;
+    try {
+      report = await threeCplusGet<ThreeCplusReport>(`/calls/${encodeURIComponent(data.callId)}`, token);
+    } catch {
+      report = null;
+    }
+    if (report && report.recorded === false) {
+      throw new Error("Esta ligação não possui gravação na 3C Plus.");
+    }
+
+    const hfToken = process.env.HF_TOKEN;
+    if (!hfToken) {
+      throw new Error("Transcrição de áudio requer a Mangaba AI ativa no servidor (HF_TOKEN).");
+    }
+
+    // Baixa o áudio pelo endpoint dedicado de gravação (api_token na query).
+    const recordingUrl = withApiToken(
+      `${THREECPLUS_BASE}/calls/${encodeURIComponent(data.callId)}/recording`,
+      token,
+    );
+    const { bytes, contentType } = await downloadRecording(recordingUrl);
+    const asrModel = process.env.HF_ASR_MODEL || DEFAULT_ASR_MODEL;
+    const rawTranscript = await transcribeAudio(bytes, contentType, hfToken, asrModel);
+
+    // LGPD: mascara PII antes de auditar, persistir e exibir.
+    const transcript = redactText(rawTranscript);
+    if (transcript.trim().length < 20) {
+      throw new Error("Transcrição muito curta para auditar.");
+    }
+
+    const sid = report?.sid || data.callId;
+    const label = `3C Plus · ${sid}`;
+    const agentName = data.agentName?.trim() || report?.agent || undefined;
+
+    const analysis = await analyzeTranscript(transcript);
+    const stored = await recordAnalysis({ analysis, origin: "audio", label, transcript, agentName });
+
+    return { ...analysis, transcript, label, id: stored.id, protocol: stored.protocol };
   });

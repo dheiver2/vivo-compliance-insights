@@ -10,10 +10,10 @@ import { Progress } from "@/components/ui/progress";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { StatusBadge } from "@/components/StatusBadge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { analyzeCall, analyzeAudio, analyzeCallFromUrl, MARKET_PROVIDERS } from "@/lib/api/analyze.functions";
+import { analyzeCall, analyzeAudio, analyzeCallFromUrl, MARKET_PROVIDERS, listThreeCplusCalls, analyzeThreeCplusCall, type ThreeCplusCall } from "@/lib/api/analyze.functions";
 import { SAMPLE_TRANSCRIPT, statusFromScore, type CallAnalysis } from "@/lib/compliance";
 import { mangabaSourceLabel } from "@/lib/mangaba";
-import { Sparkles, Wand2, FileText, CheckCircle2, XCircle, Cpu, Loader2, Smile, Meh, Frown, AudioLines, Upload, Trash2, ChevronDown, FileCheck, User, Plug, Link2, KeyRound, ShieldCheck } from "lucide-react";
+import { Sparkles, Wand2, FileText, CheckCircle2, XCircle, Cpu, Loader2, Smile, Meh, Frown, AudioLines, Upload, Trash2, ChevronDown, FileCheck, User, Plug, Link2, KeyRound, ShieldCheck, PhoneCall, Search } from "lucide-react";
 
 export const Route = createFileRoute("/analyze")({
   head: () => ({
@@ -627,6 +627,173 @@ function MarketApiPanel() {
   );
 }
 
+function ThreeCplusPanel() {
+  const [apiToken, setApiToken] = useState("");
+  const [startDate, setStartDate] = useState("");
+  const [endDate, setEndDate] = useState("");
+  const [callId, setCallId] = useState("");
+
+  const listMut = useMutation({
+    mutationFn: () =>
+      listThreeCplusCalls({
+        data: {
+          startDate: startDate.trim(),
+          endDate: endDate.trim(),
+          apiToken: apiToken.trim(),
+        },
+      }),
+  });
+
+  const analyzeMut = useMutation({
+    mutationFn: (id: string) =>
+      analyzeThreeCplusCall({ data: { callId: id, apiToken: apiToken.trim() } }),
+  });
+
+  const calls: ThreeCplusCall[] = listMut.data ?? [];
+  const canList = startDate.trim().length > 0 && !listMut.isPending;
+
+  return (
+    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <PhoneCall className="h-4 w-4 text-primary" /> 3C Plus — gravações de atendentes
+          </CardTitle>
+          <CardDescription>
+            Conecta-se à API do discador 3C Plus (3C+ V2). Liste as ligações por período
+            e audite a gravação com um clique — o servidor baixa o áudio, transcreve com o
+            Mangaba Voz, mascara PII (LGPD) e roda a auditoria.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="space-y-1.5">
+            <Label htmlFor="tc-token" className="flex items-center gap-1.5 text-xs">
+              <KeyRound className="h-3.5 w-3.5 text-muted-foreground" /> API token{" "}
+              <span className="text-muted-foreground font-normal">(opcional se THREECPLUS_API_TOKEN estiver no servidor)</span>
+            </Label>
+            <Input
+              id="tc-token"
+              type="password"
+              value={apiToken}
+              onChange={(e) => setApiToken(e.target.value)}
+              placeholder="api_token da 3C Plus"
+              disabled={listMut.isPending || analyzeMut.isPending}
+            />
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <Label htmlFor="tc-start" className="text-xs">Data inicial</Label>
+              <Input
+                id="tc-start"
+                value={startDate}
+                onChange={(e) => setStartDate(e.target.value)}
+                placeholder="2026-05-01 00:00:00"
+                disabled={listMut.isPending}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="tc-end" className="text-xs">
+                Data final <span className="text-muted-foreground font-normal">(opcional)</span>
+              </Label>
+              <Input
+                id="tc-end"
+                value={endDate}
+                onChange={(e) => setEndDate(e.target.value)}
+                placeholder="2026-05-31 23:59:59"
+                disabled={listMut.isPending}
+              />
+            </div>
+          </div>
+
+          <div className="flex flex-wrap gap-2">
+            <Button onClick={() => listMut.mutate()} disabled={!canList}>
+              {listMut.isPending ? (
+                <><Loader2 className="h-4 w-4 animate-spin" /> Buscando…</>
+              ) : (
+                <><Search className="h-4 w-4" /> Listar ligações</>
+              )}
+            </Button>
+          </div>
+          {listMut.isError && (
+            <p className="text-sm text-destructive">
+              Erro ao listar: {listMut.error instanceof Error ? listMut.error.message : "tente novamente."}
+            </p>
+          )}
+
+          {calls.length > 0 && (
+            <div className="border rounded-md divide-y max-h-[360px] overflow-auto">
+              {calls.map((c) => (
+                <div key={c.id || c.sid} className="flex items-center justify-between gap-3 p-2.5 text-xs">
+                  <div className="min-w-0">
+                    <p className="font-medium truncate">{c.agent || "Sem atendente"} · {c.number || "—"}</p>
+                    <p className="text-muted-foreground truncate">
+                      {c.callDate || "—"} · {c.campaign || c.queueName || "—"}
+                    </p>
+                  </div>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    disabled={!c.recorded || analyzeMut.isPending}
+                    onClick={() => analyzeMut.mutate(c.id || c.sid)}
+                  >
+                    {analyzeMut.isPending && analyzeMut.variables === (c.id || c.sid) ? (
+                      <><Loader2 className="h-3.5 w-3.5 animate-spin" /> …</>
+                    ) : c.recorded ? "Analisar" : "Sem gravação"}
+                  </Button>
+                </div>
+              ))}
+            </div>
+          )}
+          {listMut.isSuccess && calls.length === 0 && (
+            <p className="text-xs text-muted-foreground">Nenhuma ligação encontrada nesse período.</p>
+          )}
+
+          <div className="pt-2 border-t space-y-1.5">
+            <Label htmlFor="tc-callid" className="flex items-center gap-1.5 text-xs">
+              <PhoneCall className="h-3.5 w-3.5 text-muted-foreground" /> Analisar por ID/SID da ligação
+            </Label>
+            <div className="flex gap-2">
+              <Input
+                id="tc-callid"
+                value={callId}
+                onChange={(e) => setCallId(e.target.value)}
+                placeholder="Ex.: 1234567 ou o SID da ligação"
+                disabled={analyzeMut.isPending}
+              />
+              <Button
+                onClick={() => analyzeMut.mutate(callId.trim())}
+                disabled={callId.trim().length === 0 || analyzeMut.isPending}
+              >
+                {analyzeMut.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : "Analisar"}
+              </Button>
+            </div>
+          </div>
+          {analyzeMut.isError && (
+            <p className="text-sm text-destructive">
+              Erro ao analisar: {analyzeMut.error instanceof Error ? analyzeMut.error.message : "tente novamente."}
+            </p>
+          )}
+        </CardContent>
+      </Card>
+
+      <div>
+        {analyzeMut.data ? (
+          <Results result={analyzeMut.data} detailId={analyzeMut.data.id} />
+        ) : (
+          <Card className="border-dashed">
+            <CardContent className="flex flex-col items-center justify-center text-center py-20 text-muted-foreground">
+              <PhoneCall className="h-10 w-10 mb-3 opacity-40" />
+              <p className="text-sm">A gravação analisada da 3C Plus aparece aqui.</p>
+              <p className="text-xs mt-1">Liste por período e clique em “Analisar”, ou informe o ID da ligação.</p>
+            </CardContent>
+          </Card>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function AnalyzePage() {
   return (
     <div className="space-y-6 max-w-[1400px] mx-auto">
@@ -654,6 +821,9 @@ function AnalyzePage() {
           <TabsTrigger value="texto" className="gap-1.5">
             <FileText className="h-4 w-4" /> Transcrição
           </TabsTrigger>
+          <TabsTrigger value="3cplus" className="gap-1.5">
+            <PhoneCall className="h-4 w-4" /> 3C Plus
+          </TabsTrigger>
           <TabsTrigger value="api" className="gap-1.5">
             <Plug className="h-4 w-4" /> API de mercado
           </TabsTrigger>
@@ -663,6 +833,9 @@ function AnalyzePage() {
         </TabsContent>
         <TabsContent value="texto" className="mt-6">
           <TextPanel />
+        </TabsContent>
+        <TabsContent value="3cplus" className="mt-6">
+          <ThreeCplusPanel />
         </TabsContent>
         <TabsContent value="api" className="mt-6">
           <MarketApiPanel />

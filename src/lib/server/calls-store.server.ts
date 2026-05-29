@@ -1,14 +1,21 @@
 // Repositório server-only das análises realizadas. O sufixo .server.ts garante
 // que este módulo NUNCA é embarcado no bundle do cliente.
 //
-// PERSISTÊNCIA: array em memória + gravação best-effort em arquivo
-// (.data/calls.json) quando há um sistema de arquivos disponível (dev local
-// com Node/Bun). Nesse cenário os dados SOBREVIVEM a reinícios do servidor.
+// PERSISTÊNCIA (backend escolhido automaticamente, nesta ordem de prioridade):
+//   1. KV REST (Vercel KV / Upstash Redis) — DURÁVEL em serverless. Ativado
+//      quando KV_REST_API_URL + KV_REST_API_TOKEN (ou os equivalentes
+//      UPSTASH_REDIS_REST_URL/_TOKEN) estão definidos no ambiente. É o backend
+//      RECOMENDADO em produção (Vercel/Workers), pois sobrevive a cold starts.
+//   2. Arquivo local (.data/calls.json) via node:fs — durável em dev local
+//      (Node/Bun). Sobrevive a reinícios do servidor de desenvolvimento.
+//   3. Apenas memória — quando nenhum dos acima existe; semeia a demo por
+//      isolate. Sem durabilidade entre cold starts.
 //
-// Em Cloudflare Workers não existe `node:fs`: a camada de arquivo cai em no-op
-// e o store funciona apenas em memória (por isolate). Para durabilidade real em
-// produção, troque `readPersisted`/`writePersisted` por Cloudflare D1/KV
-// mantendo as MESMAS assinaturas — o resto do módulo e as telas não mudam.
+// O store inteiro é carregado em memória e serializado como UM blob JSON
+// ({ seq, calls }). Todos os backends expõem a MESMA interface assíncrona
+// read()/write(), então o resto do módulo (seed, dashboard, agentes) não muda.
+
+import process from "node:process";
 
 import {
   statusFromScore,
@@ -56,21 +63,62 @@ const store: StoredCall[] = [];
 let seq = 1;
 
 // ----------------------------------------------------------------------------
-// Camada de persistência best-effort em arquivo. Toda a I/O é envolvida em
-// try/catch: se `node:fs` não existir (Workers) ou a escrita falhar, o store
-// segue funcionando apenas em memória, sem quebrar nenhuma requisição.
+// Camada de persistência plugável. Toda a I/O é assíncrona e envolvida em
+// try/catch a montante: se o backend falhar, o store segue em memória sem
+// quebrar nenhuma requisição.
+//
+// NOTA de concorrência: a escrita grava o blob inteiro ({ seq, calls }). Em
+// serverless, isolates concorrentes podem sobrescrever a gravação um do outro
+// (janela curta). Para volume alto, migrar para uma LISTA Redis (LPUSH atômico
+// por ligação) — a interface read()/write() aqui é o ÚNICO ponto a trocar.
 // ----------------------------------------------------------------------------
 
-interface FileApi {
-  read: () => string | null;
-  write: (contents: string) => void;
+interface StorageBackend {
+  read: () => Promise<string | null>;
+  write: (contents: string) => Promise<void>;
 }
 
-// `undefined` = ainda não resolvido; `null` = sem fs disponível.
-let fileApi: FileApi | null | undefined;
+// Chave única onde o blob do store é guardado no KV.
+const KV_KEY = "vivo:calls-store";
 
-async function getFileApi(): Promise<FileApi | null> {
-  if (fileApi !== undefined) return fileApi;
+// Backend KV REST (Vercel KV / Upstash Redis) via fetch puro — sem dependências
+// e compatível com qualquer runtime (Node/Workers/Vercel). Usa a API de comando
+// do Upstash: POST no endpoint REST com corpo `["GET", key]` / `["SET", k, v]`.
+function resolveKvBackend(): StorageBackend | null {
+  const url = process.env.KV_REST_API_URL || process.env.UPSTASH_REDIS_REST_URL;
+  const token = process.env.KV_REST_API_TOKEN || process.env.UPSTASH_REDIS_REST_TOKEN;
+  if (!url || !token) return null;
+  const base = url.replace(/\/+$/, "");
+  const cmd = async (command: (string | number)[]): Promise<unknown> => {
+    const res = await fetch(base, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(command),
+    });
+    if (!res.ok) {
+      const detail = await res.text().catch(() => "");
+      throw new Error(`KV ${res.status}: ${detail.slice(0, 200)}`);
+    }
+    const data = (await res.json()) as { result?: unknown; error?: string };
+    if (data.error) throw new Error(`KV error: ${data.error}`);
+    return data.result ?? null;
+  };
+  return {
+    read: async () => {
+      const result = await cmd(["GET", KV_KEY]);
+      return typeof result === "string" ? result : null;
+    },
+    write: async (contents: string) => {
+      await cmd(["SET", KV_KEY, contents]);
+    },
+  };
+}
+
+// Backend de arquivo local (.data/calls.json) via node:fs — durável em dev.
+async function resolveFileBackend(): Promise<StorageBackend | null> {
   try {
     const [fs, path, proc] = await Promise.all([
       import("node:fs"),
@@ -79,15 +127,15 @@ async function getFileApi(): Promise<FileApi | null> {
     ]);
     const dir = path.join(proc.cwd(), ".data");
     const file = path.join(dir, "calls.json");
-    fileApi = {
-      read: () => {
+    return {
+      read: async () => {
         try {
           return fs.readFileSync(file, "utf8");
         } catch {
           return null;
         }
       },
-      write: (contents: string) => {
+      write: async (contents: string) => {
         try {
           fs.mkdirSync(dir, { recursive: true });
           fs.writeFileSync(file, contents);
@@ -97,9 +145,18 @@ async function getFileApi(): Promise<FileApi | null> {
       },
     };
   } catch {
-    fileApi = null; // ambiente sem node:fs (ex.: Cloudflare Workers)
+    return null; // ambiente sem node:fs (ex.: Cloudflare Workers sem KV)
   }
-  return fileApi;
+}
+
+// `undefined` = ainda não resolvido; `null` = nenhum backend (memória apenas).
+let backend: StorageBackend | null | undefined;
+
+async function getBackend(): Promise<StorageBackend | null> {
+  if (backend !== undefined) return backend;
+  // KV tem prioridade (produção durável); senão, arquivo local (dev).
+  backend = resolveKvBackend() ?? (await resolveFileBackend());
+  return backend;
 }
 
 // Promise memoizada: garante que o carregamento do disco aconteça UMA vez e que
@@ -118,14 +175,14 @@ function seedStore(): void {
 function ensureLoaded(): Promise<void> {
   if (!loadPromise) {
     loadPromise = (async () => {
-      const api = await getFileApi();
-      // Sem fs (ex.: Cloudflare Workers): isolate começa vazio. Semeia em
+      const api = await getBackend();
+      // Sem backend (ex.: Workers sem KV): isolate começa vazio. Semeia em
       // memória para que a demo tenha dados desde o primeiro acesso.
       if (!api) {
         seedStore();
         return;
       }
-      const raw = api.read();
+      const raw = await api.read();
       // Primeiro acesso (arquivo ainda não existe): semeia e persiste. Se o
       // arquivo já existir — mesmo vazio, após uma limpeza explícita — respeita
       // o conteúdo e NÃO semeia de novo.
@@ -152,9 +209,9 @@ function ensureLoaded(): Promise<void> {
 }
 
 async function persist(): Promise<void> {
-  const api = await getFileApi();
+  const api = await getBackend();
   if (!api) return;
-  api.write(JSON.stringify({ seq, calls: store }));
+  await api.write(JSON.stringify({ seq, calls: store }));
 }
 
 // Classificador de tema por palavras-chave (heurística leve, em PT-BR).

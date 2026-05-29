@@ -27,48 +27,50 @@ const DEFAULT_ASR_MODEL = "openai/whisper-large-v3-turbo";
 // Limite defensivo de tamanho do áudio enviado (25 MB).
 const MAX_AUDIO_BYTES = 25 * 1024 * 1024;
 
+// Limites de otimização de tokens do LLM auditor (entrada e saída).
+const MAX_PROMPT_CHARS = 8000; // janela máx. da transcrição enviada ao LLM
+const MAX_EVIDENCE_CHARS = 120; // corte da justificativa por item reprovado
+const MAX_OBSERVATIONS = 5; // teto de observações retornadas
+const LLM_MAX_TOKENS = 700; // schema compacto cabe com folga
+
 // O prompt é montado a partir da Ficha de Monitoria vigente (gerida pelo
 // analista). Cada critério ativo vira um item da checklist, com sua descrição
 // e marcação de criticidade — assim a IA avalia exatamente o que o analista
 // configurou.
 function buildSystemPrompt(criteria: MonitoringCriterion[]): string {
   const items = criteria
-    .map((c) => `- ${c.label}${c.critical ? " [CRÍTICO]" : ""}${c.description ? `: ${c.description}` : ""}`)
+    .map((c, i) => `${i + 1}. ${c.label}${c.critical ? " [CRÍTICO]" : ""}${c.description ? ` — ${c.description}` : ""}`)
     .join("\n");
-  return `Você é um auditor de compliance e qualidade de ligações de call center da operadora Vivo.
-Analise a transcrição fornecida e responda APENAS com um objeto JSON válido (sem markdown, sem texto extra) no formato:
-{
-  "scoreCompliance": <0-100>,
-  "scoreQuality": <0-100>,
-  "sentiment": "positivo" | "neutro" | "negativo",
-  "summary": "<resumo de 1-2 frases em português>",
-  "checks": [{ "label": "<item da checklist>", "passed": <bool>, "score": <0-100>, "evidence": "<trecho ou justificativa>" }],
-  "observations": [{ "time": "mm:ss", "note": "<observação>", "severity": "ok" | "warning" | "critical" }]
-}
-A lista "checks" deve conter exatamente um item para cada um destes critérios da Ficha de Monitoria, na mesma ordem:
-${items}
-Seja rigoroso: itens marcados como [CRÍTICO] representam risco regulatório e devem reduzir bastante o scoreCompliance quando não cumpridos.`;
+  // Prompt enxuto + schema de chaves curtas reduzem tokens de entrada e saída.
+  // "e" (evidência) só é pedido para itens reprovados.
+  return `Você é auditor de compliance e qualidade de call center da Vivo. Avalie a transcrição e responda APENAS um JSON compacto (sem markdown, sem texto extra):
+{"sq":<0-100 qualidade>,"st":"positivo|neutro|negativo","rs":"<resumo 1 frase>","ck":[{"i":<nº do critério>,"p":<0 ou 1: cumprido?>,"s":<0-100>,"e":"<só quando p=0: justificativa em ≤20 palavras>"}],"ob":[{"t":"mm:ss","n":"<observação>","sv":"ok|warning|critical"}]}
+Regras: "ck" deve ter um item para CADA critério abaixo, usando o número "i" indicado. Inclua "e" SOMENTE quando p=0. No máximo ${MAX_OBSERVATIONS} observações, apenas as relevantes. Seja rigoroso com itens [CRÍTICO].
+Critérios:
+${items}`;
 }
 
 const SentimentSchema = z.enum(["positivo", "neutro", "negativo"]);
+// Schema compacto (chaves curtas) → menos tokens de saída. ck: i=nº do critério,
+// p=cumprido (0/1 ou bool), s=score, e=evidência (só quando reprovado). ob=obs.
+const boolish = z.preprocess((v) => (typeof v === "number" ? v !== 0 : v), z.boolean());
 const ModelCheckSchema = z.object({
-  label: z.string(),
-  passed: z.boolean(),
-  score: z.number(),
-  evidence: z.string().optional().default(""),
+  i: z.coerce.number(),
+  p: boolish,
+  s: z.coerce.number(),
+  e: z.string().optional().default(""),
 });
 const ModelObsSchema = z.object({
-  time: z.string().optional().default("—"),
-  note: z.string(),
-  severity: z.enum(["ok", "warning", "critical"]).optional().default("warning"),
+  t: z.string().optional().default("—"),
+  n: z.string(),
+  sv: z.enum(["ok", "warning", "critical"]).optional().default("warning"),
 });
 const ModelResponseSchema = z.object({
-  scoreCompliance: z.number(),
-  scoreQuality: z.number(),
-  sentiment: SentimentSchema,
-  summary: z.string(),
-  checks: z.array(ModelCheckSchema).optional().default([]),
-  observations: z.array(ModelObsSchema).optional().default([]),
+  sq: z.coerce.number(),
+  st: SentimentSchema,
+  rs: z.string(),
+  ck: z.array(ModelCheckSchema).optional().default([]),
+  ob: z.array(ModelObsSchema).optional().default([]),
 });
 
 function clampScore(n: number): number {
@@ -87,32 +89,25 @@ function extractJson(raw: string): unknown {
   return JSON.parse(candidate.slice(start, end + 1));
 }
 
-function normalizeChecks(checks: ComplianceCheck[], labels: string[]): ComplianceCheck[] {
-  // Garante um item por rótulo da ficha, na ordem configurada. O modelo pode
-  // parafrasear ou reordenar rótulos, então casa por rótulo e, se falhar,
-  // recorre à posição (instruímos a mesma ordem da ficha).
-  const byLabel = new Map(checks.map((c) => [c.label.trim().toLowerCase(), c]));
-  return labels.map((label, i) => {
-    const found = byLabel.get(label.toLowerCase()) ?? checks[i];
-    if (found) {
-      return {
-        label,
-        passed: Boolean(found.passed),
-        score: clampScore(found.score),
-        evidence: found.evidence ?? "",
-      };
-    }
-    return { label, passed: false, score: 0, evidence: "Não avaliado pelo modelo." };
-  });
+// Resultado parcial do LLM: avalia o subconjunto de critérios enviados +
+// metadados globais (qualidade, sentimento, resumo, observações).
+interface LlmResult {
+  scoreQuality: number;
+  sentiment: Sentiment;
+  summary: string;
+  checks: ComplianceCheck[]; // um por critério enviado, já rotulado
+  observations: CallObservation[];
 }
 
+// Chama o LLM SÓ para os critérios informados (os que a heurística não resolveu).
+// Usa transcrição comprimida/janelada + schema compacto para minimizar tokens.
 async function analyzeWithHuggingFace(
   transcript: string,
   token: string,
   model: string,
   criteria: MonitoringCriterion[],
-): Promise<CallAnalysis> {
-  const labels = criteria.map((c) => c.label);
+): Promise<LlmResult> {
+  const promptTranscript = windowTranscript(compressTranscript(transcript));
   const res = await fetch(HF_ROUTER_URL, {
     method: "POST",
     headers: {
@@ -122,10 +117,10 @@ async function analyzeWithHuggingFace(
     body: JSON.stringify({
       model,
       temperature: 0.2,
-      max_tokens: 1500,
+      max_tokens: LLM_MAX_TOKENS,
       messages: [
         { role: "system", content: buildSystemPrompt(criteria) },
-        { role: "user", content: `Transcrição da ligação:\n\n${transcript}` },
+        { role: "user", content: `Transcrição:\n${promptTranscript}` },
       ],
     }),
   });
@@ -142,23 +137,36 @@ async function analyzeWithHuggingFace(
   if (!content) throw new Error("Resposta vazia do modelo.");
 
   const parsed = ModelResponseSchema.parse(extractJson(content));
-  const checks = normalizeChecks(parsed.checks as ComplianceCheck[], labels);
-  const observations: CallObservation[] = parsed.observations.map((o) => ({
+
+  // Casa cada critério enviado com o item de nº "i" (ou pela posição como
+  // fallback). Evidência é mantida apenas para itens reprovados.
+  const checks: ComplianceCheck[] = criteria.map((c, idx) => {
+    const found = parsed.ck.find((k) => k.i === idx + 1) ?? parsed.ck[idx];
+    if (!found) {
+      return { label: c.label, passed: false, score: 0, evidence: "Não avaliado pelo modelo." };
+    }
+    const passed = found.p;
+    return {
+      label: c.label,
+      passed,
+      score: clampScore(found.s),
+      evidence: passed ? "" : found.e?.trim().slice(0, MAX_EVIDENCE_CHARS) || "Item não cumprido.",
+    };
+  });
+
+  const observations: CallObservation[] = parsed.ob.slice(0, MAX_OBSERVATIONS).map((o) => ({
     agent: "Mangaba Compliance",
-    time: o.time || "—",
-    note: o.note,
-    severity: o.severity,
+    time: o.t || "—",
+    note: o.n,
+    severity: o.sv,
   }));
 
   return {
-    scoreCompliance: clampScore(parsed.scoreCompliance),
-    scoreQuality: clampScore(parsed.scoreQuality),
-    sentiment: parsed.sentiment,
-    summary: parsed.summary,
+    scoreQuality: clampScore(parsed.sq),
+    sentiment: parsed.st,
+    summary: parsed.rs,
     checks,
     observations,
-    source: "huggingface",
-    model,
   };
 }
 
@@ -233,27 +241,171 @@ function analyzeHeuristic(transcript: string, criteria: MonitoringCriterion[]): 
   };
 }
 
-// Núcleo reutilizável: decide entre IA (HuggingFace) e heurística local.
+// ---------------------------------------------------------------------------
+// Otimização de tokens: comprime + janela a transcrição antes do LLM, resolve
+// itens determinísticos localmente (heurística-primeiro) e cacheia por hash.
+// ---------------------------------------------------------------------------
+
+// Remove ruído barato (espaços, quebras, repetições de ASR) sem perder conteúdo.
+function compressTranscript(text: string): string {
+  return text
+    .replace(/\r/g, "")
+    .replace(/[ \t]+/g, " ")
+    .replace(/ *\n */g, "\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .replace(/(.)\1{3,}/g, "$1$1")
+    .trim();
+}
+
+// Se a transcrição passar do teto, envia início (abertura: identificação,
+// gravação, LGPD) + fim (encerramento, protocolo) + amostra do meio. Os itens do
+// script concentram-se nas pontas, então a evidência é preservada.
+function windowTranscript(text: string, max = MAX_PROMPT_CHARS): string {
+  if (text.length <= max) return text;
+  const head = Math.floor(max * 0.5);
+  const tail = Math.floor(max * 0.3);
+  const midLen = max - head - tail;
+  const midStart = Math.max(head, Math.floor((text.length - midLen) / 2));
+  const a = text.slice(0, head);
+  const b = text.slice(midStart, midStart + midLen);
+  const c = text.slice(text.length - tail);
+  return `${a}\n[...trecho omitido...]\n${b}\n[...trecho omitido...]\n${c}`;
+}
+
+// Hash FNV-1a barato para chavear o cache (transcrição + assinatura da ficha).
+function fnv1a(s: string): string {
+  let h = 0x811c9dc5;
+  for (let i = 0; i < s.length; i++) {
+    h ^= s.charCodeAt(i);
+    h = Math.imul(h, 0x01000193);
+  }
+  return (h >>> 0).toString(36);
+}
+
+// Cache em memória (vive enquanto a instância serverless está quente): reanálise
+// idêntica não gasta token. Evicção FIFO simples ao atingir o teto.
+const analysisCache = new Map<string, CallAnalysis>();
+const CACHE_MAX = 200;
+
+function cacheKey(transcript: string, criteria: MonitoringCriterion[]): string {
+  const sig = criteria.map((c) => `${c.id}:${c.critical ? 1 : 0}:${c.weight}`).join("|");
+  return `${fnv1a(transcript)}:${fnv1a(sig)}`;
+}
+
+function cacheSet(key: string, value: CallAnalysis): void {
+  if (analysisCache.size >= CACHE_MAX) {
+    const oldest = analysisCache.keys().next().value;
+    if (oldest !== undefined) analysisCache.delete(oldest);
+  }
+  analysisCache.set(key, value);
+}
+
+// Compliance final derivado da checklist: média ponderada pelo peso do critério,
+// com itens críticos contando em dobro. Determinístico e rastreável.
+function weightedCompliance(checks: ComplianceCheck[], criteria: MonitoringCriterion[]): number {
+  const byLabel = new Map(criteria.map((c) => [c.label, c]));
+  let sum = 0;
+  let weightSum = 0;
+  for (const ck of checks) {
+    const c = byLabel.get(ck.label);
+    const w = (c?.weight ?? 3) * (c?.critical ? 2 : 1);
+    sum += ck.score * w;
+    weightSum += w;
+  }
+  return clampScore(weightSum ? sum / weightSum : 0);
+}
+
+// Heurística-primeiro: resolve localmente (custo zero) itens NÃO críticos com
+// sinal positivo claro e manda ao LLM só o subconjunto ambíguo + TODOS os
+// críticos (nunca auto-aprovados). Junta tudo e deriva o compliance ponderado.
+async function analyzeHybrid(
+  transcript: string,
+  token: string,
+  model: string,
+  criteria: MonitoringCriterion[],
+): Promise<CallAnalysis> {
+  const t = transcript.toLowerCase();
+  const preResolved = new Map<string, ComplianceCheck>();
+  const remaining: MonitoringCriterion[] = [];
+  for (const c of criteria) {
+    const rule = HEURISTIC_RULES[c.label];
+    if (rule && !c.critical && rule.terms.some((term) => t.includes(term))) {
+      preResolved.set(c.label, { label: c.label, passed: true, score: 90, evidence: "" });
+    } else {
+      remaining.push(c);
+    }
+  }
+
+  // Só aciona o LLM se sobrou algo para julgar.
+  const llm = remaining.length
+    ? await analyzeWithHuggingFace(transcript, token, model, remaining)
+    : null;
+
+  const llmByLabel = new Map((llm?.checks ?? []).map((c) => [c.label, c]));
+  const checks: ComplianceCheck[] = criteria.map(
+    (c) =>
+      preResolved.get(c.label) ??
+      llmByLabel.get(c.label) ?? { label: c.label, passed: false, score: 0, evidence: "Não avaliado." },
+  );
+
+  const scoreCompliance = weightedCompliance(checks, criteria);
+
+  // Qualidade/sentimento/resumo vêm do LLM; se nada foi enviado (tudo resolvido
+  // localmente), recorre à heurística para esses campos.
+  if (llm) {
+    return {
+      scoreCompliance,
+      scoreQuality: llm.scoreQuality,
+      sentiment: llm.sentiment,
+      summary: llm.summary,
+      checks,
+      observations: llm.observations,
+      source: "huggingface",
+      model,
+    };
+  }
+
+  const h = analyzeHeuristic(transcript, criteria);
+  return {
+    scoreCompliance,
+    scoreQuality: h.scoreQuality,
+    sentiment: h.sentiment,
+    summary: "Todos os itens do script foram confirmados automaticamente (Mangaba Básico).",
+    checks,
+    observations: h.observations,
+    source: "heuristic",
+  };
+}
+
+// Núcleo reutilizável: cache → heurística-primeiro + LLM → fallback heurístico.
 async function analyzeTranscript(transcript: string): Promise<CallAnalysis> {
   const token = process.env.HF_TOKEN;
   const model = process.env.HF_MODEL || DEFAULT_MODEL;
   // Ficha de Monitoria vigente (critérios ativos definidos pelo analista).
   const criteria = await getActiveCriteria();
 
+  const key = cacheKey(transcript, criteria);
+  const cached = analysisCache.get(key);
+  if (cached) return cached;
+
+  let result: CallAnalysis;
   if (!token) {
-    return analyzeHeuristic(transcript, criteria);
+    result = analyzeHeuristic(transcript, criteria);
+  } else {
+    try {
+      result = await analyzeHybrid(transcript, token, model, criteria);
+    } catch (error) {
+      console.error("Falha na análise HuggingFace, usando heurística:", error);
+      const fallback = analyzeHeuristic(transcript, criteria);
+      fallback.summary = `Falha ao acionar a Mangaba AI — exibindo análise do Mangaba Básico. (${
+        error instanceof Error ? error.message : "erro desconhecido"
+      })`;
+      result = fallback;
+    }
   }
 
-  try {
-    return await analyzeWithHuggingFace(transcript, token, model, criteria);
-  } catch (error) {
-    console.error("Falha na análise HuggingFace, usando heurística:", error);
-    const fallback = analyzeHeuristic(transcript, criteria);
-    fallback.summary = `Falha ao acionar a Mangaba AI — exibindo análise do Mangaba Básico. (${
-      error instanceof Error ? error.message : "erro desconhecido"
-    })`;
-    return fallback;
-  }
+  cacheSet(key, result);
+  return result;
 }
 
 // Transcrição (ASR) de áudio binário via Whisper na HuggingFace Inference.

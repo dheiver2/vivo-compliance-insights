@@ -159,10 +159,20 @@ async function getBackend(): Promise<StorageBackend | null> {
   return backend;
 }
 
-// Promise memoizada: garante que o carregamento do disco aconteça UMA vez e que
-// todos os chamadores concorrentes aguardem a MESMA conclusão (evita corrida em
-// que uma leitura veria o store ainda vazio enquanto outra ainda carrega).
+// Single-flight da carga: garante que leituras concorrentes aguardem a MESMA
+// operação (evita corrida em que duas requisições leem o backend ao mesmo tempo).
+// NÃO é memoizada para sempre — ver `lastLoadAt` abaixo.
 let loadPromise: Promise<void> | null = null;
+// Quando o store foi sincronizado com o backend durável pela última vez.
+let lastLoadAt = 0;
+// Janela de frescor da releitura do backend durável. Em serverless há vários
+// isolates: se cada um memoizasse o store eternamente, um isolate que carregou
+// um estado ANTIGO continuaria servindo (e, pior, regravando) dados obsoletos —
+// foi o que fez o dashboard oscilar entre 13 e 12 após uma limpeza/ingestão.
+// Re-lendo o KV quando passou esta janela, todos os isolates convergem para a
+// verdade do backend em poucos segundos. Curto o bastante para consistência,
+// longo o bastante para não pesar dentro de um lote de gravações sequenciais.
+const STORE_FRESH_MS = 1500;
 
 // Semeia o store com as 10 ligações de demonstração e persiste (best-effort).
 function seedStore(): void {
@@ -172,41 +182,57 @@ function seedStore(): void {
   seq = nextSeq;
 }
 
-function ensureLoaded(): Promise<void> {
-  if (!loadPromise) {
-    loadPromise = (async () => {
-      const api = await getBackend();
-      // Sem backend (ex.: Workers sem KV): isolate começa vazio. Semeia em
-      // memória para que a demo tenha dados desde o primeiro acesso.
-      if (!api) {
-        seedStore();
-        return;
-      }
-      const raw = await api.read();
-      // Primeiro acesso (arquivo ainda não existe): semeia e persiste. Se o
-      // arquivo já existir — mesmo vazio, após uma limpeza explícita — respeita
-      // o conteúdo e NÃO semeia de novo.
-      if (raw === null) {
-        seedStore();
-        await persist();
-        return;
-      }
-      try {
-        const data = JSON.parse(raw) as { seq?: number; calls?: StoredCall[] };
-        if (Array.isArray(data.calls)) {
-          store.length = 0;
-          // Backfill de campos novos para registros gravados antes da entidade
-          // de agente existir — garante que toda ligação tenha um atendente.
-          store.push(
-            ...data.calls.map((c) => ({ ...c, agentName: normalizeAgentName(c.agentName) })),
-          );
-        }
-        if (typeof data.seq === "number" && data.seq > seq) seq = data.seq;
-      } catch {
-        /* arquivo corrompido — ignora e começa do zero */
-      }
-    })();
+// Sincroniza o store em memória com o conteúdo do backend durável.
+async function loadFromBackend(api: StorageBackend): Promise<void> {
+  const raw = await api.read();
+  // Backend verdadeiramente vazio (antes do primeiro seed): semeia e persiste.
+  // Após uma limpeza explícita o blob existe (calls: []), então NÃO re-semeia.
+  if (raw === null) {
+    seedStore();
+    await persist();
+    return;
   }
+  try {
+    const data = JSON.parse(raw) as { seq?: number; calls?: StoredCall[] };
+    if (Array.isArray(data.calls)) {
+      store.length = 0;
+      // Backfill de campos novos para registros gravados antes da entidade de
+      // agente existir — garante que toda ligação tenha um atendente.
+      store.push(
+        ...data.calls.map((c) => ({ ...c, agentName: normalizeAgentName(c.agentName) })),
+      );
+    }
+    // seq segue o backend (fonte da verdade), inclusive quando DIMINUI após uma
+    // limpeza — do contrário um isolate manteria um seq alto e obsoleto.
+    if (typeof data.seq === "number") seq = data.seq;
+  } catch {
+    /* blob corrompido — mantém o que houver em memória */
+  }
+}
+
+function ensureLoaded(): Promise<void> {
+  // Carga em andamento: todos aguardam a mesma (single-flight).
+  if (loadPromise) return loadPromise;
+  loadPromise = (async () => {
+    try {
+      const api = await getBackend();
+      // Sem backend durável (ex.: Workers sem KV): semeia UMA vez em memória.
+      // Sem fonte externa para reler, o estado em memória é estável.
+      if (!api) {
+        if (lastLoadAt === 0) seedStore();
+        lastLoadAt = Date.now();
+        return;
+      }
+      // Backend durável: re-lê quando passou a janela de frescor, fazendo os
+      // isolates convergirem para a verdade do KV (corrige staleness).
+      if (Date.now() - lastLoadAt >= STORE_FRESH_MS) {
+        await loadFromBackend(api);
+        lastLoadAt = Date.now();
+      }
+    } finally {
+      loadPromise = null;
+    }
+  })();
   return loadPromise;
 }
 

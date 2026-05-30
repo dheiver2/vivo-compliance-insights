@@ -67,8 +67,8 @@ export const clearCalls = createServerFn({ method: "POST" }).handler(
   },
 );
 
-// Restaura o seed de demonstração (10 ligações reais da 3C Plus), sobrescrevendo
-// o conteúdo atual do store.
+// Restaura o seed de demonstração (10 casos offline), sobrescrevendo o conteúdo
+// atual do store. Para dados reais, use a Ingestão 3C Plus (ingestThreeCplusBatch).
 export const reseedCalls = createServerFn({ method: "POST" }).handler(
   async (): Promise<{ ok: true; total: number }> => {
     const total = await reseedStoredCalls();

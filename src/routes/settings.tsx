@@ -3,6 +3,8 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -20,6 +22,7 @@ import {
   reseedCalls,
   type SystemStatus,
 } from "@/lib/api/calls.functions";
+import { ingestThreeCplusBatch } from "@/lib/api/analyze.functions";
 import { mangabaModelName } from "@/lib/mangaba";
 import {
   Settings,
@@ -31,6 +34,9 @@ import {
   Trash2,
   Loader2,
   RotateCcw,
+  PhoneCall,
+  KeyRound,
+  Download,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -69,6 +75,146 @@ function StatusRow({
   );
 }
 
+// Ingestão real em lote da 3C Plus: lista uma janela de datas e audita as
+// gravações reais para o store — fonte de dados de entrada do dashboard.
+function ThreeCplusIngestCard() {
+  const qc = useQueryClient();
+  const [apiToken, setApiToken] = useState("");
+  const [startDate, setStartDate] = useState("");
+  const [endDate, setEndDate] = useState("");
+  const [limit, setLimit] = useState("8");
+
+  const ingest = useMutation({
+    mutationFn: () =>
+      ingestThreeCplusBatch({
+        data: {
+          startDate: startDate.trim(),
+          endDate: endDate.trim(),
+          limit: Math.max(1, Math.min(25, Number(limit) || 8)),
+          apiToken: apiToken.trim(),
+        },
+      }),
+    onSuccess: async (res) => {
+      await qc.invalidateQueries();
+      if (res.ingested > 0) {
+        toast.success(
+          `${res.ingested} ligação(ões) real(is) da 3C Plus auditada(s) e adicionada(s).` +
+            (res.skipped > 0 ? ` ${res.skipped} ignorada(s).` : ""),
+        );
+      } else if (res.recordedFound === 0) {
+        toast.warning("Nenhuma ligação com gravação encontrada nesse período.");
+      } else {
+        toast.error("Nenhuma ligação pôde ser auditada (veja os erros retornados).");
+      }
+    },
+    onError: (e) => toast.error(e instanceof Error ? e.message : "Falha na ingestão da 3C Plus."),
+  });
+
+  const canIngest =
+    startDate.trim().length > 0 && endDate.trim().length > 0 && !ingest.isPending;
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <PhoneCall className="h-4 w-4 text-primary" /> Ingestão 3C Plus (dados reais)
+        </CardTitle>
+        <CardDescription>
+          Alimenta o painel com ligações reais do discador 3C Plus. O servidor baixa cada gravação,
+          transcreve com o Mangaba Voz, mascara PII (LGPD) e roda a auditoria. Processa em série
+          (respeita o limite de download da 3C Plus), então pode levar alguns segundos por ligação.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4 pt-0">
+        <div className="space-y-1.5">
+          <Label htmlFor="ing-token" className="flex items-center gap-1.5 text-xs">
+            <KeyRound className="h-3.5 w-3.5 text-muted-foreground" /> API token{" "}
+            <span className="text-muted-foreground font-normal">
+              (opcional se THREECPLUS_API_TOKEN estiver no servidor)
+            </span>
+          </Label>
+          <Input
+            id="ing-token"
+            type="password"
+            value={apiToken}
+            onChange={(e) => setApiToken(e.target.value)}
+            placeholder="api_token da 3C Plus"
+            disabled={ingest.isPending}
+          />
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <div className="space-y-1.5">
+            <Label htmlFor="ing-start" className="text-xs">
+              Data inicial
+            </Label>
+            <Input
+              id="ing-start"
+              value={startDate}
+              onChange={(e) => setStartDate(e.target.value)}
+              placeholder="2026-05-01 00:00:00"
+              disabled={ingest.isPending}
+            />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="ing-end" className="text-xs">
+              Data final
+            </Label>
+            <Input
+              id="ing-end"
+              value={endDate}
+              onChange={(e) => setEndDate(e.target.value)}
+              placeholder="2026-05-31 23:59:59"
+              disabled={ingest.isPending}
+            />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="ing-limit" className="text-xs">
+              Máx. ligações
+            </Label>
+            <Input
+              id="ing-limit"
+              type="number"
+              min={1}
+              max={25}
+              value={limit}
+              onChange={(e) => setLimit(e.target.value)}
+              disabled={ingest.isPending}
+            />
+          </div>
+        </div>
+        <div className="flex items-center justify-between gap-4">
+          <p className="text-xs text-muted-foreground">
+            Adiciona as ligações ao acervo existente (não sobrescreve).
+          </p>
+          <Button onClick={() => ingest.mutate()} disabled={!canIngest}>
+            {ingest.isPending ? (
+              <>
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" /> Importando…
+              </>
+            ) : (
+              <>
+                <Download className="h-4 w-4 mr-2" /> Importar ligações reais
+              </>
+            )}
+          </Button>
+        </div>
+        {ingest.data && ingest.data.errors.length > 0 && (
+          <div className="rounded-md border border-border/60 bg-muted/30 p-3 text-xs space-y-1 max-h-40 overflow-auto">
+            <p className="font-medium text-muted-foreground">
+              {ingest.data.errors.length} ligação(ões) não auditada(s):
+            </p>
+            {ingest.data.errors.map((er) => (
+              <p key={er.callId} className="text-muted-foreground">
+                <span className="font-mono">{er.callId}</span>: {er.message}
+              </p>
+            ))}
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
 function SettingsPage() {
   const qc = useQueryClient();
   const [open, setOpen] = useState(false);
@@ -91,7 +237,7 @@ function SettingsPage() {
     mutationFn: () => reseedCalls(),
     onSuccess: async (res) => {
       await qc.invalidateQueries();
-      toast.success(`${res.total} ligações reais (3C Plus) restauradas.`);
+      toast.success(`${res.total} casos de demonstração restaurados.`);
     },
     onError: (e) => toast.error(e instanceof Error ? e.message : "Falha ao restaurar casos."),
   });
@@ -141,6 +287,8 @@ function SettingsPage() {
             </CardContent>
           </Card>
 
+          <ThreeCplusIngestCard />
+
           <Card>
             <CardHeader>
               <CardTitle>Dados</CardTitle>
@@ -154,8 +302,8 @@ function SettingsPage() {
               />
               <div className="flex items-center justify-between gap-4 pt-4 border-b border-border/60 pb-4">
                 <p className="text-sm text-muted-foreground">
-                  Restaura as 10 ligações reais de demonstração (3C Plus). Sobrescreve os dados
-                  atuais.
+                  Restaura os 10 casos de demonstração (offline). Sobrescreve os dados atuais — use a
+                  Ingestão 3C Plus acima para dados reais.
                 </p>
                 <Button
                   variant="outline"
@@ -167,7 +315,7 @@ function SettingsPage() {
                     <Loader2 className="h-4 w-4 animate-spin" />
                   ) : (
                     <>
-                      <RotateCcw className="h-4 w-4 mr-2" /> Restaurar casos reais
+                      <RotateCcw className="h-4 w-4 mr-2" /> Restaurar demonstração
                     </>
                   )}
                 </Button>

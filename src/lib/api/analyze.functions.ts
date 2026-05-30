@@ -9,7 +9,7 @@ import {
   type Sentiment,
 } from "../compliance";
 import { redactText } from "../pii";
-import { recordAnalysis } from "../server/calls-store.server";
+import { listCalls, recordAnalysis } from "../server/calls-store.server";
 import { getActiveCriteria, type MonitoringCriterion } from "../server/monitoring-form.server";
 
 // HuggingFace Inference Providers expose an OpenAI-compatible chat endpoint.
@@ -1149,5 +1149,109 @@ export const analyzeThreeCplusCall = createServerFn({ method: "POST" })
       label,
       id: stored.id,
       protocol: stored.protocol,
+    };
+  });
+
+// ---------------------------------------------------------------------------
+// Ingestão em LOTE da 3C Plus: alimenta o store com ligações REAIS.
+//
+// Lista as ligações de uma janela de datas (somente as que têm gravação), baixa
+// o áudio, transcreve (Mangaba Voz), mascara PII (LGPD), audita e persiste cada
+// uma — exatamente o mesmo pipeline da análise avulsa, só que em série. É o
+// caminho para que a fonte de dados do dashboard seja a própria API da 3C Plus,
+// sem nenhum dado fabricado.
+//
+// A 3C Plus limita downloads de gravação (~1 a cada 5 s) e alguns nós devolvem
+// 404 intermitente: por isso processamos SEQUENCIALMENTE e isolamos falhas por
+// ligação (uma que falhe não derruba o lote). O teto de `limit` segura o tempo
+// total da requisição serverless.
+// ---------------------------------------------------------------------------
+
+const IngestThreeCplusBatchInput = z.object({
+  startDate: z.string().min(1, "Informe a data inicial (AAAA-MM-DD HH:mm:ss)."),
+  endDate: z.string().min(1, "Informe a data final (AAAA-MM-DD HH:mm:ss)."),
+  // Teto de ligações auditadas por lote. Baixo por padrão: cada item gasta
+  // ~5 s de rate limit + transcrição + auditoria.
+  limit: z.number().int().positive().max(25).optional().default(8),
+  apiToken: z.string().optional().default(""),
+});
+
+export interface ThreeCplusBatchResult {
+  // Ligações COM gravação encontradas na janela (antes do corte por `limit`).
+  recordedFound: number;
+  // Quantas foram efetivamente processadas (recordedFound limitado por `limit`).
+  attempted: number;
+  ingested: number;
+  skipped: number;
+  errors: { callId: string; message: string }[];
+  // Total de análises no store após a ingestão.
+  total: number;
+}
+
+export const ingestThreeCplusBatch = createServerFn({ method: "POST" })
+  .inputValidator(IngestThreeCplusBatchInput)
+  .handler(async ({ data }): Promise<ThreeCplusBatchResult> => {
+    const token = resolveThreeCplusToken(data.apiToken);
+    const hfToken = process.env.HF_TOKEN;
+    if (!hfToken) {
+      throw new Error(
+        "Ingestão da 3C Plus requer a Mangaba AI ativa no servidor (HF_TOKEN) para transcrever as gravações.",
+      );
+    }
+
+    const params = new URLSearchParams({
+      start_date: data.startDate,
+      end_date: data.endDate,
+      per_page: "200",
+      with_mailing: "false",
+    });
+    const reports = await threeCplusGet<ThreeCplusReport[]>(`/calls?${params.toString()}`, token);
+    const list = Array.isArray(reports) ? reports : [];
+    const recorded = list.filter((r) => r.recorded);
+    const targets = recorded.slice(0, data.limit);
+
+    const asrModel = process.env.HF_ASR_MODEL || DEFAULT_ASR_MODEL;
+    let ingested = 0;
+    const errors: { callId: string; message: string }[] = [];
+
+    // Sequencial de propósito: respeita o rate limit de download da 3C Plus.
+    for (const r of targets) {
+      const callId = String(r.id ?? r.sid ?? "");
+      if (!callId) continue;
+      try {
+        const { bytes, contentType } = await downloadThreeCplusRecording(callId, token);
+        const rawTranscript = await transcribeAudio(bytes, contentType, hfToken, asrModel);
+        const transcript = redactText(rawTranscript);
+        if (transcript.trim().length < 20) {
+          throw new Error("Transcrição muito curta para auditar.");
+        }
+        const analysis = await analyzeTranscript(transcript);
+        const auditSummary = buildAuditSummary(analysis);
+        const sid = r.sid || callId;
+        await recordAnalysis({
+          analysis,
+          origin: "audio",
+          label: `3C Plus · ${sid}`,
+          transcript: auditSummary,
+          topicSource: transcript,
+          agentName: r.agent || undefined,
+        });
+        ingested++;
+      } catch (error) {
+        errors.push({
+          callId,
+          message: error instanceof Error ? error.message : "erro desconhecido",
+        });
+      }
+    }
+
+    const total = (await listCalls()).length;
+    return {
+      recordedFound: recorded.length,
+      attempted: targets.length,
+      ingested,
+      skipped: targets.length - ingested,
+      errors,
+      total,
     };
   });

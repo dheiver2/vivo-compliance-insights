@@ -45,7 +45,7 @@ function buildSystemPrompt(criteria: MonitoringCriterion[]): string {
   // "e" (evidência) só é pedido para itens reprovados.
   return `Você é auditor de compliance e qualidade de call center da Vivo. Avalie a transcrição e responda APENAS um JSON compacto (sem markdown, sem texto extra):
 {"sq":<0-100 qualidade>,"st":"positivo|neutro|negativo","rs":"<resumo 1 frase>","ck":[{"i":<nº do critério>,"p":<0 ou 1: cumprido?>,"s":<0-100>,"e":"<só quando p=0: justificativa em ≤20 palavras>"}],"ob":[{"t":"mm:ss","n":"<observação>","sv":"ok|warning|critical"}]}
-Regras: "ck" deve ter um item para CADA critério abaixo, usando o número "i" indicado. Inclua "e" SOMENTE quando p=0. No máximo ${MAX_OBSERVATIONS} observações, apenas as relevantes. Seja rigoroso com itens [CRÍTICO].
+Regras: "ck" deve ter um item para CADA critério abaixo, usando o número "i" indicado. Inclua "e" SOMENTE quando p=0. No máximo ${MAX_OBSERVATIONS} observações, apenas as relevantes. Avalie com justiça e bom senso: dê crédito parcial (s mais alto) quando o item foi cumprido de forma substancial, ainda que imperfeita, e marque p=0 apenas quando o item esteve claramente ausente ou gravemente deficiente — não reprove por desvios menores ou variações de roteiro. Itens [CRÍTICO] (regulatórios) merecem atenção redobrada, mas julgue pelo que de fato ocorreu na ligação, considerando o contexto.
 Critérios:
 ${items}`;
 }
@@ -225,29 +225,28 @@ function analyzeHeuristic(transcript: string, criteria: MonitoringCriterion[]): 
       };
     }
     const passed = has(...rule.terms);
-    return { label: c.label, passed, score: passed ? 90 : 35, evidence: rule.evidence };
+    // Crédito parcial quando o sinal não aparece: ausência de palavra-chave não é
+    // prova de falha grave (o modo Básico não "entende" o diálogo). Mantém a ficha
+    // menos rígida — itens não detectados ficam em atenção, não em reprovação seca.
+    return { label: c.label, passed, score: passed ? 90 : 50, evidence: rule.evidence };
   });
 
   const scoreCompliance = clampScore(
     checks.length ? checks.reduce((acc, c) => acc + c.score, 0) / checks.length : 0,
   );
 
-  const negativeMarkers = [
-    "absurd",
-    "irritad",
-    "reclam",
-    "péssim",
-    "horrível",
-    "cancelar",
-    "raiva",
-  ];
+  // "cancelar" foi removido: pedir cancelamento é um motivo de contato legítimo,
+  // não um indício de mau atendimento — incluí-lo enviesava o sentimento.
+  const negativeMarkers = ["absurd", "irritad", "reclam", "péssim", "horrível", "raiva"];
   const positiveMarkers = ["obrigado", "ótimo", "perfeito", "resolvido", "satisfeit"];
   const negHits = negativeMarkers.filter((m) => t.includes(m)).length;
   const posHits = positiveMarkers.filter((m) => t.includes(m)).length;
   const sentiment: Sentiment =
     negHits > posHits ? "negativo" : posHits > negHits ? "positivo" : "neutro";
 
-  const scoreQuality = clampScore(scoreCompliance - negHits * 8 + posHits * 5);
+  // Penalidade de sentimento mais branda (6 em vez de 8): a insatisfação do
+  // cliente nem sempre reflete falha do atendente.
+  const scoreQuality = clampScore(scoreCompliance - negHits * 6 + posHits * 5);
 
   // Observações geradas a partir dos critérios que falharam (priorizando os
   // marcados como críticos pelo analista).
@@ -351,7 +350,7 @@ function weightedCompliance(checks: ComplianceCheck[], criteria: MonitoringCrite
   let weightSum = 0;
   for (const ck of checks) {
     const c = byLabel.get(ck.label);
-    const w = (c?.weight ?? 3) * (c?.critical ? 2 : 1);
+    const w = (c?.weight ?? 3) * (c?.critical ? 1.5 : 1);
     sum += ck.score * w;
     weightSum += w;
   }

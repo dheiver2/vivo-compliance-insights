@@ -41,9 +41,14 @@ export const COMPLIANCE_CHECKLIST = [
   "Encerramento cordial",
 ] as const;
 
+// Faixas de classificação da ficha. Calibradas para refletir a monitoria real de
+// call center (não um corte acadêmico): uma ligação substancialmente conforme
+// (≥75) é APROVADA; a faixa intermediária (50–74) sinaliza pontos de atenção sem
+// reprovar; só abaixo de 50 — lacunas graves/sistêmicas — vira CRÍTICA. Bandas
+// menos rígidas evitam reprovar atendimentos bons por desvios menores de roteiro.
 export function statusFromScore(score: number): "approved" | "warning" | "critical" {
-  if (score >= 85) return "approved";
-  if (score >= 70) return "warning";
+  if (score >= 75) return "approved";
+  if (score >= 50) return "warning";
   return "critical";
 }
 

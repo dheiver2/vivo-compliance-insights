@@ -20,6 +20,7 @@ import {
   Smile,
   Users,
   Cpu,
+  RefreshCw,
 } from "lucide-react";
 import {
   LineChart,
@@ -153,7 +154,7 @@ const GRANULARITY_OPTIONS: {
 
 function Dashboard() {
   const [granularity, setGranularity] = useState<TrendGranularity>("day");
-  const { data, isLoading } = useQuery<DashboardData>({
+  const { data, isLoading, isFetching, refetch, dataUpdatedAt } = useQuery<DashboardData>({
     queryKey: ["dashboard", granularity],
     queryFn: () => getDashboard({ data: { granularity } }),
     refetchOnWindowFocus: true,
@@ -170,9 +171,25 @@ function Dashboard() {
             Compliance e qualidade calculados a partir das análises realizadas
           </p>
         </div>
-        <div className="flex items-center gap-2 text-xs text-muted-foreground">
-          <span className="h-2 w-2 rounded-full bg-success animate-pulse" />
-          {data ? `${data.modelUsage.length} componentes de IA em uso` : "carregando…"}
+        <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+            <span className="h-2 w-2 rounded-full bg-success animate-pulse" />
+            {data ? `${data.modelUsage.length} componentes de IA em uso` : "carregando…"}
+          </div>
+          <button
+            type="button"
+            onClick={() => refetch()}
+            disabled={isFetching}
+            title={
+              dataUpdatedAt
+                ? `Atualizado às ${new Date(dataUpdatedAt).toLocaleTimeString("pt-BR")}`
+                : "Atualizar indicadores"
+            }
+            className="inline-flex items-center gap-2 rounded-md border border-border/60 bg-secondary/40 px-3 py-1.5 text-xs font-medium text-foreground transition-colors hover:bg-secondary disabled:opacity-60 disabled:cursor-not-allowed"
+          >
+            <RefreshCw className={`h-3.5 w-3.5 ${isFetching ? "animate-spin" : ""}`} />
+            {isFetching ? "Atualizando…" : "Atualizar"}
+          </button>
         </div>
       </header>
 

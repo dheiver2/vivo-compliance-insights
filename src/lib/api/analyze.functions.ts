@@ -44,8 +44,11 @@ function buildSystemPrompt(criteria: MonitoringCriterion[]): string {
   // Prompt enxuto + schema de chaves curtas reduzem tokens de entrada e saída.
   // "e" (evidência) só é pedido para itens reprovados.
   return `Você é auditor de compliance e qualidade de call center da Vivo. Avalie a transcrição e responda APENAS um JSON compacto (sem markdown, sem texto extra):
-{"sq":<0-100 qualidade>,"st":"positivo|neutro|negativo","rs":"<resumo 1 frase>","ck":[{"i":<nº do critério>,"p":<0 ou 1: cumprido?>,"s":<0-100>,"e":"<só quando p=0: justificativa em ≤20 palavras>"}],"ob":[{"t":"mm:ss","n":"<observação>","sv":"ok|warning|critical"}]}
-Regras: "ck" deve ter um item para CADA critério abaixo, usando o número "i" indicado. Inclua "e" SOMENTE quando p=0. No máximo ${MAX_OBSERVATIONS} observações, apenas as relevantes. Avalie com justiça e bom senso: dê crédito parcial (s mais alto) quando o item foi cumprido de forma substancial, ainda que imperfeita, e marque p=0 apenas quando o item esteve claramente ausente ou gravemente deficiente — não reprove por desvios menores ou variações de roteiro. Itens [CRÍTICO] (regulatórios) merecem atenção redobrada, mas julgue pelo que de fato ocorreu na ligação, considerando o contexto.
+{"sq":<0-100 qualidade>,"st":"positivo|neutro|negativo","rs":"<resumo 1 frase>","ck":[{"i":<nº do critério>,"p":<0 ou 1: cumprido?>,"s":<0-100>,"na":<0 ou 1: critério NÃO se aplica a esta ligação?>,"e":"<justificativa em ≤20 palavras quando p=0 ou na=1>"}],"ob":[{"t":"mm:ss","n":"<observação>","sv":"ok|warning|critical"}]}
+Regras: "ck" deve ter um item para CADA critério abaixo, usando o número "i" indicado. Inclua "e" quando p=0 ou na=1. No máximo ${MAX_OBSERVATIONS} observações, apenas as relevantes.
+Avalie com justiça e bom senso: dê crédito parcial (s mais alto) quando o item foi cumprido de forma substancial, ainda que imperfeita, e marque p=0 apenas quando o item esteve claramente ausente ou gravemente deficiente — não reprove por desvios menores ou variações de roteiro.
+Checklist contextual: marque na=1 quando o critério for IRRELEVANTE para a natureza da ligação (ex.: "oferta de produto" ou "prazos/custos de adesão" numa ligação só de suporte/dúvida/reclamação, sem venda). Itens com na=1 são desconsiderados, não penalizam. NUNCA use na=1 em itens [CRÍTICO] nem em deveres que valem para toda ligação (identificação, aviso de gravação, consentimento LGPD, confirmação cadastral) — esses sempre se aplicam; se ausentes, é p=0.
+Itens [CRÍTICO] (regulatórios) merecem atenção redobrada, mas julgue pelo que de fato ocorreu na ligação, considerando o contexto.
 Critérios:
 ${items}`;
 }
@@ -58,6 +61,7 @@ const ModelCheckSchema = z.object({
   i: z.coerce.number(),
   p: boolish,
   s: z.coerce.number(),
+  na: boolish.optional().default(false), // critério não se aplica a esta ligação
   e: z.string().optional().default(""),
 });
 const ModelObsSchema = z.object({
@@ -145,12 +149,25 @@ async function analyzeWithHuggingFace(
     if (!found) {
       return { label: c.label, passed: false, score: 0, evidence: "Não avaliado pelo modelo." };
     }
+    // N/A só é permitido em itens NÃO críticos: critérios regulatórios (críticos)
+    // sempre se aplicam — se o modelo tentar marcá-los N/A, ignoramos.
+    const applicable = c.critical ? true : !found.na;
+    if (!applicable) {
+      return {
+        label: c.label,
+        passed: true, // não reprova; é desconsiderado da média
+        score: 0,
+        evidence: found.e?.trim().slice(0, MAX_EVIDENCE_CHARS) || "Não se aplica a esta ligação.",
+        applicable: false,
+      };
+    }
     const passed = found.p;
     return {
       label: c.label,
       passed,
       score: clampScore(found.s),
       evidence: passed ? "" : found.e?.trim().slice(0, MAX_EVIDENCE_CHARS) || "Item não cumprido.",
+      applicable: true,
     };
   });
 
@@ -349,6 +366,9 @@ function weightedCompliance(checks: ComplianceCheck[], criteria: MonitoringCrite
   let sum = 0;
   let weightSum = 0;
   for (const ck of checks) {
+    // Checklist contextual: itens marcados como não aplicáveis (N/A) ficam de
+    // fora da média — não contam como 0% nem inflam a nota.
+    if (ck.applicable === false) continue;
     const c = byLabel.get(ck.label);
     const w = (c?.weight ?? 3) * (c?.critical ? 1.5 : 1);
     sum += ck.score * w;
@@ -583,9 +603,11 @@ function buildAuditSummary(analysis: CallAnalysis): string {
     lines.push("");
     lines.push("Script de monitoria:");
     for (const c of analysis.checks) {
-      const mark = c.passed ? "✓" : "✗";
+      const na = c.applicable === false;
+      const mark = na ? "—" : c.passed ? "✓" : "✗";
+      const score = na ? "N/A" : `${c.score}%`;
       const evidence = c.evidence?.trim() ? ` — ${c.evidence.trim()}` : "";
-      lines.push(`${mark} ${c.label} (${c.score}%)${evidence}`);
+      lines.push(`${mark} ${c.label} (${score})${evidence}`);
     }
   }
 

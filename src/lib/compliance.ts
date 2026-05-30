@@ -9,6 +9,12 @@ export interface ComplianceCheck {
   passed: boolean;
   score: number; // 0-100
   evidence: string;
+  // Checklist contextual: quando `false`, o critério NÃO se aplica à natureza
+  // desta ligação (ex.: "oferta de produto" numa ligação só de suporte) e por
+  // isso é EXCLUÍDO da média de compliance — não conta como reprovação. Itens
+  // regulatórios (gravação, identificação, LGPD, confirmação cadastral) são
+  // sempre aplicáveis e nunca recebem N/A. `undefined` é tratado como aplicável.
+  applicable?: boolean;
 }
 
 export interface CallObservation {

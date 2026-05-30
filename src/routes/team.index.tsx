@@ -27,7 +27,7 @@ export const Route = createFileRoute("/team/")({
 });
 
 function scoreCls(s: number) {
-  return s >= 85 ? "text-success" : s >= 70 ? "text-warning-foreground" : "text-destructive";
+  return s >= 75 ? "text-success" : s >= 50 ? "text-warning-foreground" : "text-destructive";
 }
 
 function rankMedal(i: number) {

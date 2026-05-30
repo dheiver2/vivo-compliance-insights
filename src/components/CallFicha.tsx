@@ -6,7 +6,7 @@ import { Link } from "@tanstack/react-router";
 import { AudioLines, FileText, User } from "lucide-react";
 
 function scoreCls(s: number) {
-  return s >= 85 ? "text-success" : s >= 70 ? "text-warning-foreground" : "text-destructive";
+  return s >= 75 ? "text-success" : s >= 50 ? "text-warning-foreground" : "text-destructive";
 }
 
 // Ficha de monitoria completa de uma ligação — reutilizada na rota /monitoring
@@ -67,18 +67,33 @@ export function CallFicha({ call }: { call: StoredCall }) {
           <p className="text-sm text-muted-foreground bg-secondary/40 rounded-lg p-3 border border-border/60">
             {call.summary}
           </p>
-          {call.checks.map((item) => (
-            <div key={item.label}>
-              <div className="flex justify-between text-sm mb-1.5">
-                <span className="font-medium">{item.label}</span>
-                <span className={`font-semibold ${scoreCls(item.score)}`}>{item.score}%</span>
+          {call.checks.map((item) => {
+            const na = item.applicable === false;
+            return (
+              <div key={item.label} className={na ? "opacity-60" : undefined}>
+                <div className="flex justify-between text-sm mb-1.5">
+                  <span className="font-medium">{item.label}</span>
+                  {na ? (
+                    <span className="text-[10px] uppercase tracking-wide font-semibold text-muted-foreground border border-border rounded px-1.5 py-0.5">
+                      N/A
+                    </span>
+                  ) : (
+                    <span className={`font-semibold ${scoreCls(item.score)}`}>{item.score}%</span>
+                  )}
+                </div>
+                {na ? (
+                  <div className="h-2 rounded-full bg-muted" aria-hidden />
+                ) : (
+                  <Progress value={item.score} className="h-2" />
+                )}
+                {item.evidence && (
+                  <p className="text-xs text-muted-foreground mt-1">
+                    {na ? "Não se aplica a esta ligação" : item.evidence}
+                  </p>
+                )}
               </div>
-              <Progress value={item.score} className="h-2" />
-              {item.evidence && (
-                <p className="text-xs text-muted-foreground mt-1">{item.evidence}</p>
-              )}
-            </div>
-          ))}
+            );
+          })}
         </CardContent>
       </Card>
 

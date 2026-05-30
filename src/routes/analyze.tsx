@@ -33,6 +33,7 @@ import {
   FileText,
   CheckCircle2,
   XCircle,
+  MinusCircle,
   Cpu,
   Loader2,
   Smile,
@@ -70,7 +71,7 @@ const sentimentMap = {
 
 function ScoreTile({ label, score }: { label: string; score: number }) {
   const cls =
-    score >= 85 ? "text-success" : score >= 70 ? "text-warning-foreground" : "text-destructive";
+    score >= 75 ? "text-success" : score >= 50 ? "text-warning-foreground" : "text-destructive";
   return (
     <div className="rounded-lg border border-border/60 p-4 text-center">
       <div className="text-[10px] uppercase tracking-wider text-muted-foreground">{label}</div>
@@ -130,29 +131,46 @@ function Results({ result, detailId }: { result: CallAnalysis; detailId?: string
           <CardDescription>Checklist regulatória aplicada à transcrição</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          {result.checks.map((c) => (
-            <div key={c.label}>
-              <div className="flex justify-between items-center text-sm mb-1.5">
-                <span className="flex items-center gap-2">
-                  {c.passed ? (
-                    <CheckCircle2 className="h-4 w-4 text-success flex-shrink-0" />
+          {result.checks.map((c) => {
+            const na = c.applicable === false;
+            return (
+              <div key={c.label} className={na ? "opacity-60" : undefined}>
+                <div className="flex justify-between items-center text-sm mb-1.5">
+                  <span className="flex items-center gap-2">
+                    {na ? (
+                      <MinusCircle className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                    ) : c.passed ? (
+                      <CheckCircle2 className="h-4 w-4 text-success flex-shrink-0" />
+                    ) : (
+                      <XCircle className="h-4 w-4 text-destructive flex-shrink-0" />
+                    )}
+                    {c.label}
+                  </span>
+                  {na ? (
+                    <span className="text-[10px] uppercase tracking-wide font-semibold text-muted-foreground border border-border rounded px-1.5 py-0.5">
+                      N/A
+                    </span>
                   ) : (
-                    <XCircle className="h-4 w-4 text-destructive flex-shrink-0" />
+                    <span
+                      className={`font-semibold ${c.score >= 75 ? "text-success" : c.score >= 50 ? "text-warning-foreground" : "text-destructive"}`}
+                    >
+                      {c.score}%
+                    </span>
                   )}
-                  {c.label}
-                </span>
-                <span
-                  className={`font-semibold ${c.score >= 85 ? "text-success" : c.score >= 70 ? "text-warning-foreground" : "text-destructive"}`}
-                >
-                  {c.score}%
-                </span>
+                </div>
+                {na ? (
+                  <div className="h-2 rounded-full bg-muted" aria-hidden />
+                ) : (
+                  <Progress value={c.score} className="h-2" />
+                )}
+                {c.evidence && (
+                  <p className="text-xs text-muted-foreground mt-1 ml-6">
+                    {na ? "Não se aplica a esta ligação" : c.evidence}
+                  </p>
+                )}
               </div>
-              <Progress value={c.score} className="h-2" />
-              {c.evidence && (
-                <p className="text-xs text-muted-foreground mt-1 ml-6">{c.evidence}</p>
-              )}
-            </div>
-          ))}
+            );
+          })}
         </CardContent>
       </Card>
 

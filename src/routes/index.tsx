@@ -1,5 +1,4 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useQuery } from "@tanstack/react-query";
 import {
   Headphones,
   Sparkles,
@@ -17,6 +16,10 @@ import { VivoLogo } from "@/components/VivoLogo";
 import { getDashboard } from "@/lib/api/calls.functions";
 import type { DashboardData } from "@/lib/server/calls-store.server";
 
+// Stats reais carregadas no servidor (loader) — números já vêm prontos no HTML do SSR,
+// sem flash de "—" e sem depender de um fetch no cliente que pode falhar.
+type LandingStats = { value: string; label: string }[];
+
 export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
@@ -28,6 +31,21 @@ export const Route = createFileRoute("/")({
       },
     ],
   }),
+  loader: async (): Promise<{ stats: LandingStats | null }> => {
+    try {
+      const data: DashboardData = await getDashboard({ data: { granularity: "day" } });
+      return {
+        stats: [
+          { value: data.kpis.totalCalls.value.toLocaleString("pt-BR"), label: "Ligações auditadas" },
+          { value: `${data.kpis.avgCompliance.value}%`, label: "Compliance médio" },
+          { value: String(data.modelUsage.length), label: "Componentes de IA" },
+          { value: `${data.kpis.aiCoverage.value}%`, label: "Cobertura da IA" },
+        ],
+      };
+    } catch {
+      return { stats: null };
+    }
+  },
   component: Landing,
 });
 
@@ -83,31 +101,15 @@ const steps = [
 ];
 
 function Landing() {
-  // Stats reais do mesmo store que alimenta o dashboard — nada de números fixos.
-  const { data } = useQuery<DashboardData>({
-    queryKey: ["dashboard", "day"],
-    queryFn: () => getDashboard({ data: { granularity: "day" } }),
-    refetchOnWindowFocus: true,
-  });
-
-  const stats = [
-    {
-      value: data ? data.kpis.totalCalls.value.toLocaleString("pt-BR") : "—",
-      label: "Ligações auditadas",
-    },
-    {
-      value: data ? `${data.kpis.avgCompliance.value}%` : "—",
-      label: "Compliance médio",
-    },
-    {
-      value: data ? String(data.modelUsage.length) : "—",
-      label: "Componentes de IA",
-    },
-    {
-      value: data ? `${data.kpis.aiCoverage.value}%` : "—",
-      label: "Cobertura da IA",
-    },
-  ];
+  // Números reais resolvidos no servidor (loader). Fallback honesto se o backend falhar.
+  const { stats: loaded } = Route.useLoaderData();
+  const stats: LandingStats =
+    loaded ?? [
+      { value: "—", label: "Ligações auditadas" },
+      { value: "—", label: "Compliance médio" },
+      { value: "—", label: "Componentes de IA" },
+      { value: "—", label: "Cobertura da IA" },
+    ];
 
   return (
     <div className="min-h-screen bg-background text-foreground font-sans">

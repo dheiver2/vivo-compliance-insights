@@ -2,12 +2,12 @@ import { Link, useRouterState } from "@tanstack/react-router";
 import {
   LayoutDashboard,
   Phone,
-  Bot,
-  FileCheck,
   Settings,
   Headphones,
-  Sparkles,
   Users,
+  GraduationCap,
+  ClipboardCheck,
+  FileSpreadsheet,
 } from "lucide-react";
 import {
   Sidebar,
@@ -25,11 +25,11 @@ import { VivoLogo } from "@/components/VivoLogo";
 
 const items = [
   { title: "Dashboard", url: "/dashboard", icon: LayoutDashboard },
-  { title: "Análise IA", url: "/analyze", icon: Sparkles },
   { title: "Ligações", url: "/calls", icon: Phone },
   { title: "Equipe", url: "/team", icon: Users },
-  { title: "Agentes IA", url: "/agents", icon: Bot },
-  { title: "Ficha de Monitoria", url: "/monitoring", icon: FileCheck },
+  { title: "Coaching", url: "/coaching", icon: GraduationCap },
+  { title: "Scorecards", url: "/scorecards", icon: ClipboardCheck },
+  { title: "Relatórios", url: "/relatorios", icon: FileSpreadsheet },
 ];
 
 export function AppSidebar() {

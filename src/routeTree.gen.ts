@@ -10,9 +10,12 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as SettingsRouteImport } from './routes/settings'
+import { Route as ScorecardsRouteImport } from './routes/scorecards'
+import { Route as RelatoriosRouteImport } from './routes/relatorios'
 import { Route as MonitoringRouteImport } from './routes/monitoring'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as DashboardRouteImport } from './routes/dashboard'
+import { Route as CoachingRouteImport } from './routes/coaching'
 import { Route as AnalyzeRouteImport } from './routes/analyze'
 import { Route as AgentsRouteImport } from './routes/agents'
 import { Route as IndexRouteImport } from './routes/index'
@@ -24,6 +27,16 @@ import { Route as CallsCallIdRouteImport } from './routes/calls.$callId'
 const SettingsRoute = SettingsRouteImport.update({
   id: '/settings',
   path: '/settings',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ScorecardsRoute = ScorecardsRouteImport.update({
+  id: '/scorecards',
+  path: '/scorecards',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const RelatoriosRoute = RelatoriosRouteImport.update({
+  id: '/relatorios',
+  path: '/relatorios',
   getParentRoute: () => rootRouteImport,
 } as any)
 const MonitoringRoute = MonitoringRouteImport.update({
@@ -39,6 +52,11 @@ const LoginRoute = LoginRouteImport.update({
 const DashboardRoute = DashboardRouteImport.update({
   id: '/dashboard',
   path: '/dashboard',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const CoachingRoute = CoachingRouteImport.update({
+  id: '/coaching',
+  path: '/coaching',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AnalyzeRoute = AnalyzeRouteImport.update({
@@ -81,9 +99,12 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/agents': typeof AgentsRoute
   '/analyze': typeof AnalyzeRoute
+  '/coaching': typeof CoachingRoute
   '/dashboard': typeof DashboardRoute
   '/login': typeof LoginRoute
   '/monitoring': typeof MonitoringRoute
+  '/relatorios': typeof RelatoriosRoute
+  '/scorecards': typeof ScorecardsRoute
   '/settings': typeof SettingsRoute
   '/calls/$callId': typeof CallsCallIdRoute
   '/team/$agentName': typeof TeamAgentNameRoute
@@ -94,9 +115,12 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/agents': typeof AgentsRoute
   '/analyze': typeof AnalyzeRoute
+  '/coaching': typeof CoachingRoute
   '/dashboard': typeof DashboardRoute
   '/login': typeof LoginRoute
   '/monitoring': typeof MonitoringRoute
+  '/relatorios': typeof RelatoriosRoute
+  '/scorecards': typeof ScorecardsRoute
   '/settings': typeof SettingsRoute
   '/calls/$callId': typeof CallsCallIdRoute
   '/team/$agentName': typeof TeamAgentNameRoute
@@ -108,9 +132,12 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/agents': typeof AgentsRoute
   '/analyze': typeof AnalyzeRoute
+  '/coaching': typeof CoachingRoute
   '/dashboard': typeof DashboardRoute
   '/login': typeof LoginRoute
   '/monitoring': typeof MonitoringRoute
+  '/relatorios': typeof RelatoriosRoute
+  '/scorecards': typeof ScorecardsRoute
   '/settings': typeof SettingsRoute
   '/calls/$callId': typeof CallsCallIdRoute
   '/team/$agentName': typeof TeamAgentNameRoute
@@ -123,9 +150,12 @@ export interface FileRouteTypes {
     | '/'
     | '/agents'
     | '/analyze'
+    | '/coaching'
     | '/dashboard'
     | '/login'
     | '/monitoring'
+    | '/relatorios'
+    | '/scorecards'
     | '/settings'
     | '/calls/$callId'
     | '/team/$agentName'
@@ -136,9 +166,12 @@ export interface FileRouteTypes {
     | '/'
     | '/agents'
     | '/analyze'
+    | '/coaching'
     | '/dashboard'
     | '/login'
     | '/monitoring'
+    | '/relatorios'
+    | '/scorecards'
     | '/settings'
     | '/calls/$callId'
     | '/team/$agentName'
@@ -149,9 +182,12 @@ export interface FileRouteTypes {
     | '/'
     | '/agents'
     | '/analyze'
+    | '/coaching'
     | '/dashboard'
     | '/login'
     | '/monitoring'
+    | '/relatorios'
+    | '/scorecards'
     | '/settings'
     | '/calls/$callId'
     | '/team/$agentName'
@@ -163,9 +199,12 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AgentsRoute: typeof AgentsRoute
   AnalyzeRoute: typeof AnalyzeRoute
+  CoachingRoute: typeof CoachingRoute
   DashboardRoute: typeof DashboardRoute
   LoginRoute: typeof LoginRoute
   MonitoringRoute: typeof MonitoringRoute
+  RelatoriosRoute: typeof RelatoriosRoute
+  ScorecardsRoute: typeof ScorecardsRoute
   SettingsRoute: typeof SettingsRoute
   CallsCallIdRoute: typeof CallsCallIdRoute
   TeamAgentNameRoute: typeof TeamAgentNameRoute
@@ -180,6 +219,20 @@ declare module '@tanstack/react-router' {
       path: '/settings'
       fullPath: '/settings'
       preLoaderRoute: typeof SettingsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/scorecards': {
+      id: '/scorecards'
+      path: '/scorecards'
+      fullPath: '/scorecards'
+      preLoaderRoute: typeof ScorecardsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/relatorios': {
+      id: '/relatorios'
+      path: '/relatorios'
+      fullPath: '/relatorios'
+      preLoaderRoute: typeof RelatoriosRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/monitoring': {
@@ -201,6 +254,13 @@ declare module '@tanstack/react-router' {
       path: '/dashboard'
       fullPath: '/dashboard'
       preLoaderRoute: typeof DashboardRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/coaching': {
+      id: '/coaching'
+      path: '/coaching'
+      fullPath: '/coaching'
+      preLoaderRoute: typeof CoachingRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/analyze': {
@@ -259,9 +319,12 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AgentsRoute: AgentsRoute,
   AnalyzeRoute: AnalyzeRoute,
+  CoachingRoute: CoachingRoute,
   DashboardRoute: DashboardRoute,
   LoginRoute: LoginRoute,
   MonitoringRoute: MonitoringRoute,
+  RelatoriosRoute: RelatoriosRoute,
+  ScorecardsRoute: ScorecardsRoute,
   SettingsRoute: SettingsRoute,
   CallsCallIdRoute: CallsCallIdRoute,
   TeamAgentNameRoute: TeamAgentNameRoute,

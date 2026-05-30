@@ -1055,12 +1055,26 @@ function toThreeCplusCall(r: ThreeCplusReport): ThreeCplusCall {
   };
 }
 
+// Filtro de duração da própria API 3C Plus: `minimum_duration`/`maximum_duration`
+// (inteiros, em segundos) no GET /calls. Acrescenta os parâmetros quando > 0.
+function appendDurationParams(params: URLSearchParams, minSec?: number, maxSec?: number): void {
+  if (typeof minSec === "number" && minSec > 0) {
+    params.set("minimum_duration", String(Math.round(minSec)));
+  }
+  if (typeof maxSec === "number" && maxSec > 0) {
+    params.set("maximum_duration", String(Math.round(maxSec)));
+  }
+}
+
 const ListThreeCplusInput = z.object({
   // Janela de datas no formato exigido pela 3C Plus (Y-m-d H:i:s). A API V2
   // EXIGE ambas as datas (start_date e end_date) — sem end_date retorna 422.
   startDate: z.string().min(1, "Informe a data inicial (AAAA-MM-DD)."),
   endDate: z.string().min(1, "Informe a data final (AAAA-MM-DD)."),
   perPage: z.number().int().positive().max(200).optional().default(50),
+  // Filtro opcional de duração (segundos) repassado à API 3C Plus.
+  minDurationSec: z.number().int().nonnegative().optional(),
+  maxDurationSec: z.number().int().nonnegative().optional(),
   apiToken: z.string().optional().default(""),
 });
 
@@ -1076,6 +1090,7 @@ export const listThreeCplusCalls = createServerFn({ method: "GET" })
       per_page: String(data.perPage),
       with_mailing: "false",
     });
+    appendDurationParams(params, data.minDurationSec, data.maxDurationSec);
     const reports = await threeCplusGet<ThreeCplusReport[]>(`/calls?${params.toString()}`, token);
     const list = Array.isArray(reports) ? reports : [];
     return list.map(toThreeCplusCall);
@@ -1167,12 +1182,20 @@ export const analyzeThreeCplusCall = createServerFn({ method: "POST" })
 // total da requisição serverless.
 // ---------------------------------------------------------------------------
 
+// Banda de duração padrão (segundos) para "ligações de ~3 min": 2:30 a 4:00,
+// centrada em 3:00. A própria API 3C Plus filtra por minimum/maximum_duration.
+const DEFAULT_MIN_DURATION_SEC = 150;
+const DEFAULT_MAX_DURATION_SEC = 240;
+
 const IngestThreeCplusBatchInput = z.object({
   startDate: z.string().min(1, "Informe a data inicial (AAAA-MM-DD HH:mm:ss)."),
   endDate: z.string().min(1, "Informe a data final (AAAA-MM-DD HH:mm:ss)."),
   // Teto de ligações auditadas por lote. Baixo por padrão: cada item gasta
   // ~5 s de rate limit + transcrição + auditoria.
   limit: z.number().int().positive().max(25).optional().default(8),
+  // Filtro de duração (segundos). Padrão: faixa de ~3 min (150–240s).
+  minDurationSec: z.number().int().nonnegative().optional().default(DEFAULT_MIN_DURATION_SEC),
+  maxDurationSec: z.number().int().nonnegative().optional().default(DEFAULT_MAX_DURATION_SEC),
   apiToken: z.string().optional().default(""),
 });
 
@@ -1205,6 +1228,7 @@ export const ingestThreeCplusBatch = createServerFn({ method: "POST" })
       per_page: "200",
       with_mailing: "false",
     });
+    appendDurationParams(params, data.minDurationSec, data.maxDurationSec);
     const reports = await threeCplusGet<ThreeCplusReport[]>(`/calls?${params.toString()}`, token);
     const list = Array.isArray(reports) ? reports : [];
     const recorded = list.filter((r) => r.recorded);

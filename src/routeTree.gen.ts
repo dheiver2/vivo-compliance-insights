@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as MonitoringRouteImport } from './routes/monitoring'
+import { Route as LoginRouteImport } from './routes/login'
 import { Route as DashboardRouteImport } from './routes/dashboard'
 import { Route as AnalyzeRouteImport } from './routes/analyze'
 import { Route as AgentsRouteImport } from './routes/agents'
@@ -28,6 +29,11 @@ const SettingsRoute = SettingsRouteImport.update({
 const MonitoringRoute = MonitoringRouteImport.update({
   id: '/monitoring',
   path: '/monitoring',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LoginRoute = LoginRouteImport.update({
+  id: '/login',
+  path: '/login',
   getParentRoute: () => rootRouteImport,
 } as any)
 const DashboardRoute = DashboardRouteImport.update({
@@ -76,6 +82,7 @@ export interface FileRoutesByFullPath {
   '/agents': typeof AgentsRoute
   '/analyze': typeof AnalyzeRoute
   '/dashboard': typeof DashboardRoute
+  '/login': typeof LoginRoute
   '/monitoring': typeof MonitoringRoute
   '/settings': typeof SettingsRoute
   '/calls/$callId': typeof CallsCallIdRoute
@@ -88,6 +95,7 @@ export interface FileRoutesByTo {
   '/agents': typeof AgentsRoute
   '/analyze': typeof AnalyzeRoute
   '/dashboard': typeof DashboardRoute
+  '/login': typeof LoginRoute
   '/monitoring': typeof MonitoringRoute
   '/settings': typeof SettingsRoute
   '/calls/$callId': typeof CallsCallIdRoute
@@ -101,6 +109,7 @@ export interface FileRoutesById {
   '/agents': typeof AgentsRoute
   '/analyze': typeof AnalyzeRoute
   '/dashboard': typeof DashboardRoute
+  '/login': typeof LoginRoute
   '/monitoring': typeof MonitoringRoute
   '/settings': typeof SettingsRoute
   '/calls/$callId': typeof CallsCallIdRoute
@@ -115,6 +124,7 @@ export interface FileRouteTypes {
     | '/agents'
     | '/analyze'
     | '/dashboard'
+    | '/login'
     | '/monitoring'
     | '/settings'
     | '/calls/$callId'
@@ -127,6 +137,7 @@ export interface FileRouteTypes {
     | '/agents'
     | '/analyze'
     | '/dashboard'
+    | '/login'
     | '/monitoring'
     | '/settings'
     | '/calls/$callId'
@@ -139,6 +150,7 @@ export interface FileRouteTypes {
     | '/agents'
     | '/analyze'
     | '/dashboard'
+    | '/login'
     | '/monitoring'
     | '/settings'
     | '/calls/$callId'
@@ -152,6 +164,7 @@ export interface RootRouteChildren {
   AgentsRoute: typeof AgentsRoute
   AnalyzeRoute: typeof AnalyzeRoute
   DashboardRoute: typeof DashboardRoute
+  LoginRoute: typeof LoginRoute
   MonitoringRoute: typeof MonitoringRoute
   SettingsRoute: typeof SettingsRoute
   CallsCallIdRoute: typeof CallsCallIdRoute
@@ -174,6 +187,13 @@ declare module '@tanstack/react-router' {
       path: '/monitoring'
       fullPath: '/monitoring'
       preLoaderRoute: typeof MonitoringRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/login': {
+      id: '/login'
+      path: '/login'
+      fullPath: '/login'
+      preLoaderRoute: typeof LoginRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/dashboard': {
@@ -240,6 +260,7 @@ const rootRouteChildren: RootRouteChildren = {
   AgentsRoute: AgentsRoute,
   AnalyzeRoute: AnalyzeRoute,
   DashboardRoute: DashboardRoute,
+  LoginRoute: LoginRoute,
   MonitoringRoute: MonitoringRoute,
   SettingsRoute: SettingsRoute,
   CallsCallIdRoute: CallsCallIdRoute,

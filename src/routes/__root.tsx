@@ -3,6 +3,7 @@ import {
   Outlet,
   Link,
   createRootRouteWithContext,
+  redirect,
   useRouter,
   useRouterState,
   HeadContent,
@@ -10,6 +11,10 @@ import {
 } from "@tanstack/react-router";
 
 import appCss from "../styles.css?url";
+import { getAuthStatus } from "@/lib/api/auth.functions";
+
+// Rotas públicas (não exigem login). Todo o resto passa pelo gate.
+const PUBLIC_PATHS = new Set(["/", "/login"]);
 
 function NotFoundComponent() {
   return (
@@ -52,6 +57,15 @@ function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
 }
 
 export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()({
+  // Gate de acesso: rotas internas exigem sessão. Roda no servidor (SSR) e no
+  // cliente (navegação). Com APP_PASSWORD ausente, o gate fica desligado.
+  beforeLoad: async ({ location }) => {
+    if (PUBLIC_PATHS.has(location.pathname)) return;
+    const status = await getAuthStatus();
+    if (status.gateEnabled && !status.authed) {
+      throw redirect({ to: "/login", search: { redirect: location.pathname } });
+    }
+  },
   head: () => ({
     meta: [
       { charSet: "utf-8" },
@@ -102,10 +116,10 @@ import { AppHeader } from "@/components/AppHeader";
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
   const pathname = useRouterState({ select: (r) => r.location.pathname });
-  // A landing page ("/") é pública e ocupa a tela inteira, sem o app shell.
-  const isLanding = pathname === "/";
+  // A landing ("/") e o login ocupam a tela inteira, sem o app shell.
+  const isFullScreen = pathname === "/" || pathname === "/login";
 
-  if (isLanding) {
+  if (isFullScreen) {
     return (
       <QueryClientProvider client={queryClient}>
         <Outlet />

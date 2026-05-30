@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useNavigate, Link } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Bell, Search, Settings, AlertTriangle, CheckCircle2 } from "lucide-react";
+import { Bell, Search, Settings, AlertTriangle, CheckCircle2, LogOut } from "lucide-react";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import {
   DropdownMenu,
@@ -12,6 +12,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { getDashboard } from "@/lib/api/calls.functions";
+import { logout } from "@/lib/api/auth.functions";
 import type { DashboardData, StoredCall } from "@/lib/server/calls-store.server";
 
 // Notificações = ligações com status crítico (dado real do dashboard).
@@ -34,6 +35,12 @@ export function AppHeader() {
     e.preventDefault();
     const q = term.trim();
     navigate({ to: "/calls", search: q ? { q } : { q: undefined } });
+  }
+
+  async function handleLogout() {
+    await logout();
+    qc.clear();
+    navigate({ to: "/login" });
   }
 
   return (
@@ -123,6 +130,10 @@ export function AppHeader() {
             </DropdownMenuItem>
             <DropdownMenuItem onClick={() => qc.invalidateQueries()}>
               <Bell className="h-4 w-4 mr-2" /> Atualizar dados
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem onClick={handleLogout}>
+              <LogOut className="h-4 w-4 mr-2" /> Sair
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>

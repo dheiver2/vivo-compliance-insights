@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { getDashboard } from "@/lib/api/calls.functions";
 import type { DashboardData } from "@/lib/server/calls-store.server";
+import { RefreshButton } from "@/components/RefreshButton";
 import { mangabaModelName } from "@/lib/mangaba";
 import { Bot, CheckCircle2, Activity, Loader2, Sparkles } from "lucide-react";
 
@@ -47,9 +48,9 @@ function capsFor(name: string, role: string): string[] {
 }
 
 function AgentsPage() {
-  const { data, isLoading } = useQuery<DashboardData>({
-    queryKey: ["dashboard"],
-    queryFn: () => getDashboard(),
+  const { data, isLoading, isFetching, refetch, dataUpdatedAt } = useQuery<DashboardData>({
+    queryKey: ["dashboard", "day"],
+    queryFn: () => getDashboard({ data: { granularity: "day" } }),
     refetchOnWindowFocus: true,
   });
 
@@ -57,11 +58,14 @@ function AgentsPage() {
 
   return (
     <div className="space-y-6 max-w-[1400px] mx-auto">
-      <header>
-        <h1 className="text-3xl font-display font-bold">Agentes de IA</h1>
-        <p className="text-sm text-muted-foreground mt-1">
-          Componentes do pipeline que processam as ligações — uso real
-        </p>
+      <header className="flex items-start justify-between gap-4">
+        <div>
+          <h1 className="text-3xl font-display font-bold">Agentes de IA</h1>
+          <p className="text-sm text-muted-foreground mt-1">
+            Componentes do pipeline que processam as ligações — uso real
+          </p>
+        </div>
+        <RefreshButton onClick={() => refetch()} busy={isFetching} updatedAt={dataUpdatedAt} />
       </header>
 
       {isLoading && (
@@ -75,12 +79,15 @@ function AgentsPage() {
           <CardContent className="flex flex-col items-center justify-center text-center py-24 text-muted-foreground">
             <Bot className="h-12 w-12 mb-4 opacity-40" />
             <p className="text-base font-medium text-foreground">Nenhum agente acionado ainda</p>
-            <p className="text-sm mt-1">Os componentes aparecem após a primeira análise.</p>
+            <p className="text-sm mt-1">
+              Os componentes aparecem após a primeira auditoria. Importe ligações da 3C Plus em
+              Configurações.
+            </p>
             <Link
-              to="/analyze"
+              to="/settings"
               className="mt-6 inline-flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90"
             >
-              <Sparkles className="h-4 w-4" /> Ir para Análise IA
+              <Sparkles className="h-4 w-4" /> Importar ligações da 3C Plus
             </Link>
           </CardContent>
         </Card>

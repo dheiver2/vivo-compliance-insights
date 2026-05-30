@@ -1,6 +1,6 @@
 import { useState } from "react";
-import { useNavigate, useRouter, Link } from "@tanstack/react-router";
-import { useQuery } from "@tanstack/react-query";
+import { useNavigate, Link } from "@tanstack/react-router";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Bell, Search, Settings, AlertTriangle, CheckCircle2 } from "lucide-react";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import {
@@ -17,8 +17,8 @@ import type { DashboardData, StoredCall } from "@/lib/server/calls-store.server"
 // Notificações = ligações com status crítico (dado real do dashboard).
 function useCriticalCalls(): StoredCall[] {
   const { data } = useQuery<DashboardData>({
-    queryKey: ["dashboard"],
-    queryFn: () => getDashboard(),
+    queryKey: ["dashboard", "day"],
+    queryFn: () => getDashboard({ data: { granularity: "day" } }),
     refetchOnWindowFocus: true,
   });
   return (data?.recentCalls ?? []).filter((c) => c.status === "critical");
@@ -26,7 +26,7 @@ function useCriticalCalls(): StoredCall[] {
 
 export function AppHeader() {
   const navigate = useNavigate();
-  const router = useRouter();
+  const qc = useQueryClient();
   const [term, setTerm] = useState("");
   const critical = useCriticalCalls();
 
@@ -121,7 +121,7 @@ export function AppHeader() {
                 <Settings className="h-4 w-4" /> Configurações
               </Link>
             </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => router.invalidate()}>
+            <DropdownMenuItem onClick={() => qc.invalidateQueries()}>
               <Bell className="h-4 w-4 mr-2" /> Atualizar dados
             </DropdownMenuItem>
           </DropdownMenuContent>

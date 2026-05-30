@@ -4,8 +4,9 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { StatusBadge } from "@/components/StatusBadge";
 import { listCalls } from "@/lib/api/calls.functions";
 import type { StoredCall } from "@/lib/server/calls-store.server";
+import { RefreshButton } from "@/components/RefreshButton";
 import { mangabaSourceShort } from "@/lib/mangaba";
-import { AudioLines, FileText, Loader2, Search, Sparkles, X } from "lucide-react";
+import { AudioLines, FileText, Loader2, Phone, Search, Sparkles, X } from "lucide-react";
 
 export const Route = createFileRoute("/calls/")({
   validateSearch: (search: Record<string, unknown>): { q?: string } => ({
@@ -38,7 +39,7 @@ function matches(c: StoredCall, q: string): boolean {
 
 function CallsPage() {
   const { q } = Route.useSearch();
-  const { data, isLoading } = useQuery<StoredCall[]>({
+  const { data, isLoading, isFetching, refetch, dataUpdatedAt } = useQuery<StoredCall[]>({
     queryKey: ["calls"],
     queryFn: () => listCalls(),
     refetchOnWindowFocus: true,
@@ -48,11 +49,14 @@ function CallsPage() {
 
   return (
     <div className="space-y-6 max-w-[1600px] mx-auto">
-      <header>
-        <h1 className="text-3xl font-display font-bold">Ligações auditadas</h1>
-        <p className="text-sm text-muted-foreground mt-1">
-          Todas as análises processadas pelos agentes de IA
-        </p>
+      <header className="flex items-start justify-between gap-4">
+        <div>
+          <h1 className="text-3xl font-display font-bold">Ligações auditadas</h1>
+          <p className="text-sm text-muted-foreground mt-1">
+            Todas as análises processadas pelos agentes de IA
+          </p>
+        </div>
+        <RefreshButton onClick={() => refetch()} busy={isFetching} updatedAt={dataUpdatedAt} />
       </header>
 
       {q && (
@@ -83,12 +87,17 @@ function CallsPage() {
           <CardContent className="flex flex-col items-center justify-center text-center py-24 text-muted-foreground">
             <Sparkles className="h-12 w-12 mb-4 opacity-40" />
             <p className="text-base font-medium text-foreground">Nenhuma ligação auditada ainda</p>
-            <p className="text-sm mt-1">As análises feitas na Análise IA aparecem aqui.</p>
+            <p className="text-sm mt-1">
+              Importe as gravações reais do discador 3C Plus em Configurações.
+            </p>
             <Link
-              to="/analyze"
+              to="/settings"
               className="mt-6 inline-flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90"
             >
-              <Sparkles className="h-4 w-4" /> Ir para Análise IA
+              <Phone className="h-4 w-4" /> Importar ligações da 3C Plus
+            </Link>
+            <Link to="/analyze" className="mt-3 text-xs text-muted-foreground hover:text-foreground">
+              ou analisar um áudio/transcrição avulsa
             </Link>
           </CardContent>
         </Card>

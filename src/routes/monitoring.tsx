@@ -409,12 +409,14 @@ function CallFichaViewer() {
         <CardContent className="flex flex-col items-center justify-center text-center py-24 text-muted-foreground">
           <Sparkles className="h-12 w-12 mb-4 opacity-40" />
           <p className="text-base font-medium text-foreground">Nenhuma análise para exibir</p>
-          <p className="text-sm mt-1">Faça uma análise para gerar a ficha de monitoria.</p>
+          <p className="text-sm mt-1">
+            Importe ligações reais da 3C Plus em Configurações para gerar as fichas.
+          </p>
           <Link
-            to="/analyze"
+            to="/settings"
             className="mt-6 inline-flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90"
           >
-            <Sparkles className="h-4 w-4" /> Ir para Análise IA
+            <FileCheck className="h-4 w-4" /> Importar ligações da 3C Plus
           </Link>
         </CardContent>
       </Card>

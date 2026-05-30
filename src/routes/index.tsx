@@ -1,4 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
+import { useQuery } from "@tanstack/react-query";
 import {
   Headphones,
   Sparkles,
@@ -13,6 +14,8 @@ import {
   X,
 } from "lucide-react";
 import { VivoLogo } from "@/components/VivoLogo";
+import { getDashboard } from "@/lib/api/calls.functions";
+import type { DashboardData } from "@/lib/server/calls-store.server";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -79,14 +82,33 @@ const steps = [
   },
 ];
 
-const stats = [
-  { value: "12.847", label: "Ligações auditadas" },
-  { value: "84,6%", label: "Compliance médio" },
-  { value: "4", label: "Agentes de IA ativos" },
-  { value: "100%", label: "Cobertura das chamadas" },
-];
-
 function Landing() {
+  // Stats reais do mesmo store que alimenta o dashboard — nada de números fixos.
+  const { data } = useQuery<DashboardData>({
+    queryKey: ["dashboard", "day"],
+    queryFn: () => getDashboard({ data: { granularity: "day" } }),
+    refetchOnWindowFocus: true,
+  });
+
+  const stats = [
+    {
+      value: data ? data.kpis.totalCalls.value.toLocaleString("pt-BR") : "—",
+      label: "Ligações auditadas",
+    },
+    {
+      value: data ? `${data.kpis.avgCompliance.value}%` : "—",
+      label: "Compliance médio",
+    },
+    {
+      value: data ? String(data.modelUsage.length) : "—",
+      label: "Componentes de IA",
+    },
+    {
+      value: data ? `${data.kpis.aiCoverage.value}%` : "—",
+      label: "Cobertura da IA",
+    },
+  ];
+
   return (
     <div className="min-h-screen bg-background text-foreground font-sans">
       {/* Nav */}
@@ -276,6 +298,9 @@ function Landing() {
             <div className="flex items-center justify-between border-b border-border/60 pb-4">
               <div className="flex items-center gap-2 text-sm font-semibold">
                 <Bot className="h-4 w-4 text-primary" /> Resultado da análise
+                <span className="text-[10px] font-normal uppercase tracking-wider text-muted-foreground">
+                  · exemplo
+                </span>
               </div>
               <span className="rounded-full border border-warning/40 bg-warning/20 px-2.5 py-0.5 text-xs font-medium text-warning-foreground">
                 Atenção
@@ -362,7 +387,7 @@ function Landing() {
               · uma solução <VivoLogo className="h-3 text-primary" />
             </span>
           </div>
-          <p>Demonstração · dados fictícios para fins de avaliação.</p>
+          <p>Compliance &amp; Qualidade · indicadores calculados a partir de ligações reais auditadas.</p>
         </div>
       </footer>
     </div>

@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Progress } from "@/components/ui/progress";
 import { StatusBadge } from "@/components/StatusBadge";
 import { getDashboard } from "@/lib/api/calls.functions";
+import { RefreshButton } from "@/components/RefreshButton";
 import { mangabaModelName } from "@/lib/mangaba";
 import type { DashboardData, TrendGranularity } from "@/lib/server/calls-store.server";
 import {
@@ -20,7 +21,6 @@ import {
   Smile,
   Users,
   Cpu,
-  RefreshCw,
 } from "lucide-react";
 import {
   LineChart,
@@ -116,14 +116,17 @@ function EmptyState() {
         <Sparkles className="h-12 w-12 mb-4 opacity-40" />
         <p className="text-base font-medium text-foreground">Nenhuma ligação analisada ainda</p>
         <p className="text-sm mt-1 max-w-md">
-          Os indicadores deste painel são calculados a partir das análises reais. Comece enviando
-          áudios ou uma transcrição na Análise IA.
+          Os indicadores deste painel são calculados a partir de ligações reais. Importe as
+          gravações do discador 3C Plus em Configurações para alimentar o painel.
         </p>
         <Link
-          to="/analyze"
+          to="/settings"
           className="mt-6 inline-flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90"
         >
-          <Sparkles className="h-4 w-4" /> Ir para Análise IA
+          <Phone className="h-4 w-4" /> Importar ligações da 3C Plus
+        </Link>
+        <Link to="/analyze" className="mt-3 text-xs text-muted-foreground hover:text-foreground">
+          ou analisar um áudio/transcrição avulsa
         </Link>
       </CardContent>
     </Card>
@@ -176,20 +179,11 @@ function Dashboard() {
             <span className="h-2 w-2 rounded-full bg-success animate-pulse" />
             {data ? `${data.modelUsage.length} componentes de IA em uso` : "carregando…"}
           </div>
-          <button
-            type="button"
+          <RefreshButton
             onClick={() => refetch()}
-            disabled={isFetching}
-            title={
-              dataUpdatedAt
-                ? `Atualizado às ${new Date(dataUpdatedAt).toLocaleTimeString("pt-BR")}`
-                : "Atualizar indicadores"
-            }
-            className="inline-flex items-center gap-2 rounded-md border border-border/60 bg-secondary/40 px-3 py-1.5 text-xs font-medium text-foreground transition-colors hover:bg-secondary disabled:opacity-60 disabled:cursor-not-allowed"
-          >
-            <RefreshCw className={`h-3.5 w-3.5 ${isFetching ? "animate-spin" : ""}`} />
-            {isFetching ? "Atualizando…" : "Atualizar"}
-          </button>
+            busy={isFetching}
+            updatedAt={dataUpdatedAt}
+          />
         </div>
       </header>
 

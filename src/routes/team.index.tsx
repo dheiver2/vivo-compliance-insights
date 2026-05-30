@@ -4,10 +4,10 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { StatusBadge } from "@/components/StatusBadge";
 import { listAgents } from "@/lib/api/calls.functions";
 import type { AgentPerformance } from "@/lib/server/calls-store.server";
+import { RefreshButton } from "@/components/RefreshButton";
 import {
   Users,
   Loader2,
-  Sparkles,
   TrendingDown,
   Smile,
   Meh,
@@ -63,7 +63,7 @@ function SentimentBar({ s }: { s: AgentPerformance["sentiment"] }) {
 }
 
 function TeamPage() {
-  const { data, isLoading } = useQuery<AgentPerformance[]>({
+  const { data, isLoading, isFetching, refetch, dataUpdatedAt } = useQuery<AgentPerformance[]>({
     queryKey: ["agents-performance"],
     queryFn: () => listAgents(),
     refetchOnWindowFocus: true,
@@ -71,14 +71,17 @@ function TeamPage() {
 
   return (
     <div className="space-y-6 max-w-[1400px] mx-auto">
-      <header>
-        <h1 className="text-3xl font-display font-bold flex items-center gap-3">
-          <Users className="h-7 w-7 text-primary" />
-          Desempenho da Equipe
-        </h1>
-        <p className="text-sm text-muted-foreground mt-1">
-          Ranking de atendentes por score de compliance — derivado das ligações auditadas
-        </p>
+      <header className="flex items-start justify-between gap-4">
+        <div>
+          <h1 className="text-3xl font-display font-bold flex items-center gap-3">
+            <Users className="h-7 w-7 text-primary" />
+            Desempenho da Equipe
+          </h1>
+          <p className="text-sm text-muted-foreground mt-1">
+            Ranking de atendentes por score de compliance — derivado das ligações auditadas
+          </p>
+        </div>
+        <RefreshButton onClick={() => refetch()} busy={isFetching} updatedAt={dataUpdatedAt} />
       </header>
 
       {isLoading && (
@@ -93,13 +96,17 @@ function TeamPage() {
             <Users className="h-12 w-12 mb-4 opacity-40" />
             <p className="text-base font-medium text-foreground">Nenhum atendente avaliado ainda</p>
             <p className="text-sm mt-1">
-              Informe o atendente ao analisar uma ligação para alimentar o ranking.
+              Importe as ligações reais da 3C Plus em Configurações — o atendente de cada gravação
+              alimenta o ranking automaticamente.
             </p>
             <Link
-              to="/analyze"
+              to="/settings"
               className="mt-6 inline-flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90"
             >
-              <Sparkles className="h-4 w-4" /> Ir para Análise IA
+              <Users className="h-4 w-4" /> Importar ligações da 3C Plus
+            </Link>
+            <Link to="/analyze" className="mt-3 text-xs text-muted-foreground hover:text-foreground">
+              ou analisar um áudio/transcrição avulsa
             </Link>
           </CardContent>
         </Card>

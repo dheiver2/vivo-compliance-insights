@@ -196,24 +196,34 @@ function AudiosPage() {
     [auditedQ.data],
   );
 
-  // Filtros do acervo de áudios (metadados do store: busca, atendente, status).
+  // Filtros do acervo de áudios (metadados do store: busca, atendente, tema, status).
   const [audioSearch, setAudioSearch] = useState("");
   const [agentFilter, setAgentFilter] = useState("all");
+  const [topicFilter, setTopicFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState("all");
 
   const agentsInAudios = useMemo(
     () => [...new Set(auditedAudios.map((c) => c.agentName))].sort((a, b) => a.localeCompare(b)),
     [auditedAudios],
   );
+  // Temas disponíveis — gerados na auditoria (classifyTopic da transcrição).
+  const topicsInAudios = useMemo(
+    () =>
+      [...new Set(auditedAudios.map((c) => c.topic).filter(Boolean))].sort((a, b) =>
+        a.localeCompare(b),
+      ),
+    [auditedAudios],
+  );
   const filteredAudios = useMemo(() => {
     const q = audioSearch.trim().toLowerCase();
     return auditedAudios.filter((c) => {
       if (agentFilter !== "all" && c.agentName !== agentFilter) return false;
+      if (topicFilter !== "all" && c.topic !== topicFilter) return false;
       if (statusFilter !== "all" && c.status !== statusFilter) return false;
       if (q && !`${c.id} ${c.agentName} ${c.topic}`.toLowerCase().includes(q)) return false;
       return true;
     });
-  }, [auditedAudios, audioSearch, agentFilter, statusFilter]);
+  }, [auditedAudios, audioSearch, agentFilter, topicFilter, statusFilter]);
 
   const listMut = useMutation({
     mutationFn: (vars: { startDate: string; endDate: string }) => {
@@ -459,6 +469,21 @@ function AudiosPage() {
                     ))}
                   </SelectContent>
                 </Select>
+                {topicsInAudios.length > 0 && (
+                  <Select value={topicFilter} onValueChange={setTopicFilter}>
+                    <SelectTrigger className="h-9 w-[170px]">
+                      <SelectValue placeholder="Tema" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Todos os temas</SelectItem>
+                      {topicsInAudios.map((t) => (
+                        <SelectItem key={t} value={t}>
+                          {t}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
                 <Select value={statusFilter} onValueChange={setStatusFilter}>
                   <SelectTrigger className="h-9 w-[150px]">
                     <SelectValue placeholder="Status" />
@@ -470,7 +495,10 @@ function AudiosPage() {
                     <SelectItem value="critical">Crítico</SelectItem>
                   </SelectContent>
                 </Select>
-                {(audioSearch || agentFilter !== "all" || statusFilter !== "all") && (
+                {(audioSearch ||
+                  agentFilter !== "all" ||
+                  topicFilter !== "all" ||
+                  statusFilter !== "all") && (
                   <span className="text-xs text-muted-foreground">
                     {filteredAudios.length} de {auditedAudios.length}
                   </span>

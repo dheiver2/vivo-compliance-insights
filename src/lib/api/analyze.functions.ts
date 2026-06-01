@@ -26,11 +26,14 @@ const DEFAULT_ASR_MODEL = "openai/whisper-large-v3-turbo";
 // Limite defensivo de tamanho do áudio enviado (25 MB).
 const MAX_AUDIO_BYTES = 25 * 1024 * 1024;
 
-// Limites de otimização de tokens do LLM auditor (entrada e saída).
-const MAX_PROMPT_CHARS = 8000; // janela máx. da transcrição enviada ao LLM
-const MAX_EVIDENCE_CHARS = 120; // corte da justificativa por item reprovado
-const MAX_OBSERVATIONS = 5; // teto de observações retornadas
-const LLM_MAX_TOKENS = 700; // schema compacto cabe com folga
+// Limites do LLM auditor. A transcrição COMPLETA precisa ser avaliada (muitos
+// critérios exigem evidência ao longo de toda a ligação), então a janela é
+// generosa — o Llama 3.1 8B tem contexto de 128k, então até ligações longas
+// (~20 min) entram inteiras; só outliers extremos são janelados.
+const MAX_PROMPT_CHARS = 32000; // ~8k tokens: cobre a transcrição inteira da maioria das ligações
+const MAX_EVIDENCE_CHARS = 200; // justificativa por item — mais detalhe na avaliação
+const MAX_OBSERVATIONS = 8; // teto de observações retornadas
+const LLM_MAX_TOKENS = 2000; // saída maior: muitos critérios + evidência sem truncar
 
 // O prompt é montado a partir da Ficha de Monitoria vigente (gerida pelo
 // analista). Cada critério ativo vira um item da checklist, com sua descrição
@@ -46,7 +49,7 @@ function buildSystemPrompt(criteria: MonitoringCriterion[]): string {
   // Prompt enxuto + schema de chaves curtas reduzem tokens de entrada e saída.
   // "e" (evidência) só é pedido para itens reprovados.
   return `Você é auditor de compliance e qualidade de call center da Vivo. Avalie a transcrição e responda APENAS um JSON compacto (sem markdown, sem texto extra):
-{"sq":<0-100 qualidade>,"st":"positivo|neutro|negativo","rs":"<resumo 1 frase>","ck":[{"i":<nº do critério>,"p":<0 ou 1: cumprido?>,"s":<0-100>,"na":<0 ou 1: critério NÃO se aplica a esta ligação?>,"e":"<justificativa em ≤20 palavras quando p=0 ou na=1>"}],"ob":[{"t":"mm:ss","n":"<observação>","sv":"ok|warning|critical"}]}
+{"sq":<0-100 qualidade>,"st":"positivo|neutro|negativo","rs":"<resumo 1 frase>","ck":[{"i":<nº do critério>,"p":<0 ou 1: cumprido?>,"s":<0-100>,"na":<0 ou 1: critério NÃO se aplica a esta ligação?>,"e":"<justificativa em ≤35 palavras quando p=0 ou na=1, citando o trecho/evidência>"}],"ob":[{"t":"mm:ss","n":"<observação>","sv":"ok|warning|critical"}]}
 Regras: "ck" deve ter um item para CADA critério abaixo, usando o número "i" indicado. Inclua "e" quando p=0 ou na=1. No máximo ${MAX_OBSERVATIONS} observações, apenas as relevantes.
 Avalie com justiça e bom senso: dê crédito parcial (s mais alto) quando o item foi cumprido de forma substancial, ainda que imperfeita, e marque p=0 apenas quando o item esteve claramente ausente ou gravemente deficiente — não reprove por desvios menores ou variações de roteiro.
 Checklist contextual: marque na=1 quando o critério for IRRELEVANTE para a natureza da ligação (ex.: "oferta de produto" ou "prazos/custos de adesão" numa ligação só de suporte/dúvida/reclamação, sem venda). Itens com na=1 são desconsiderados, não penalizam. NUNCA use na=1 em itens [CRÍTICO] nem em deveres que valem para toda ligação (identificação, aviso de gravação, consentimento LGPD, confirmação cadastral) — esses sempre se aplicam; se ausentes, é p=0.
@@ -343,10 +346,17 @@ function fnv1a(s: string): string {
   return (h >>> 0).toString(36);
 }
 
-// Assinatura da ficha vigente (id + criticidade + peso de cada critério). Muda
-// quando o scorecard muda → invalida o cache automaticamente.
+// Versão do pipeline de análise (prompt/limites/parsing). Bumpar invalida todo o
+// cache — garante que mudanças como "transcrição completa" valham na re-análise.
+const ANALYSIS_VERSION = 2;
+
+// Assinatura da ficha vigente (versão + id + criticidade + peso de cada critério).
+// Muda quando o scorecard OU o pipeline muda → invalida o cache automaticamente.
 function criteriaSig(criteria: MonitoringCriterion[]): string {
-  return fnv1a(criteria.map((c) => `${c.id}:${c.critical ? 1 : 0}:${c.weight}`).join("|"));
+  return fnv1a(
+    `v${ANALYSIS_VERSION}|` +
+      criteria.map((c) => `${c.id}:${c.critical ? 1 : 0}:${c.weight}`).join("|"),
+  );
 }
 
 // Chave do cache L1 (análise do LLM): transcrição + assinatura da ficha.

@@ -12,6 +12,7 @@ import { redactText } from "../pii";
 import { listCalls, recordAnalysis } from "../server/calls-store.server";
 import { getActiveCriteria, type MonitoringCriterion } from "../server/monitoring-form.server";
 import { isAuthenticated, isGateEnabled } from "../server/auth.server";
+import { getCachedAnalysis, setCachedAnalysis } from "../server/ai-cache.server";
 
 // HuggingFace Inference Providers expose an OpenAI-compatible chat endpoint.
 const HF_ROUTER_URL = "https://router.huggingface.co/v1/chat/completions";
@@ -342,22 +343,15 @@ function fnv1a(s: string): string {
   return (h >>> 0).toString(36);
 }
 
-// Cache em memória (vive enquanto a instância serverless está quente): reanálise
-// idêntica não gasta token. Evicção FIFO simples ao atingir o teto.
-const analysisCache = new Map<string, CallAnalysis>();
-const CACHE_MAX = 200;
-
-function cacheKey(transcript: string, criteria: MonitoringCriterion[]): string {
-  const sig = criteria.map((c) => `${c.id}:${c.critical ? 1 : 0}:${c.weight}`).join("|");
-  return `${fnv1a(transcript)}:${fnv1a(sig)}`;
+// Assinatura da ficha vigente (id + criticidade + peso de cada critério). Muda
+// quando o scorecard muda → invalida o cache automaticamente.
+function criteriaSig(criteria: MonitoringCriterion[]): string {
+  return fnv1a(criteria.map((c) => `${c.id}:${c.critical ? 1 : 0}:${c.weight}`).join("|"));
 }
 
-function cacheSet(key: string, value: CallAnalysis): void {
-  if (analysisCache.size >= CACHE_MAX) {
-    const oldest = analysisCache.keys().next().value;
-    if (oldest !== undefined) analysisCache.delete(oldest);
-  }
-  analysisCache.set(key, value);
+// Chave do cache L1 (análise do LLM): transcrição + assinatura da ficha.
+function cacheKey(transcript: string, criteria: MonitoringCriterion[]): string {
+  return `${fnv1a(transcript)}:${criteriaSig(criteria)}`;
 }
 
 // Compliance final derivado da checklist: média ponderada pelo peso do critério,
@@ -445,35 +439,34 @@ async function analyzeHybrid(
   };
 }
 
-// Núcleo reutilizável: cache → heurística-primeiro + LLM → fallback heurístico.
+// Núcleo reutilizável: cache durável → heurística-primeiro + LLM → fallback.
 async function analyzeTranscript(transcript: string): Promise<CallAnalysis> {
   const token = process.env.HF_TOKEN;
   const model = process.env.HF_MODEL || DEFAULT_MODEL;
   // Ficha de Monitoria vigente (critérios ativos definidos pelo analista).
   const criteria = await getActiveCriteria();
 
+  // L1: cache durável por transcrição + ficha — a MESMA entrada não re-gasta LLM.
   const key = cacheKey(transcript, criteria);
-  const cached = analysisCache.get(key);
+  const cached = await getCachedAnalysis(key);
   if (cached) return cached;
 
-  let result: CallAnalysis;
-  if (!token) {
-    result = analyzeHeuristic(transcript, criteria);
-  } else {
-    try {
-      result = await analyzeHybrid(transcript, token, model, criteria);
-    } catch (error) {
-      console.error("Falha na análise HuggingFace, usando heurística:", error);
-      const fallback = analyzeHeuristic(transcript, criteria);
-      fallback.summary = `Falha ao acionar a Mangaba AI — exibindo análise do Mangaba Básico. (${
-        error instanceof Error ? error.message : "erro desconhecido"
-      })`;
-      result = fallback;
-    }
-  }
+  // Sem token: heurística local (custo zero, determinística) — nada a cachear.
+  if (!token) return analyzeHeuristic(transcript, criteria);
 
-  cacheSet(key, result);
-  return result;
+  try {
+    const result = await analyzeHybrid(transcript, token, model, criteria);
+    // Só cacheia análise REAL (Mangaba AI) — nunca o fallback degradado.
+    if (result.source === "huggingface") await setCachedAnalysis(key, result);
+    return result;
+  } catch (error) {
+    console.error("Falha na análise HuggingFace, usando heurística:", error);
+    const fallback = analyzeHeuristic(transcript, criteria);
+    fallback.summary = `Falha ao acionar a Mangaba AI — exibindo análise do Mangaba Básico. (${
+      error instanceof Error ? error.message : "erro desconhecido"
+    })`;
+    return fallback;
+  }
 }
 
 // Transcrição (ASR) de áudio binário via Whisper na HuggingFace Inference.
@@ -1153,38 +1146,49 @@ export const analyzeThreeCplusCall = createServerFn({ method: "POST" })
       throw new Error("Esta ligação não possui gravação na 3C Plus.");
     }
 
-    const hfToken = process.env.HF_TOKEN;
-    if (!hfToken) {
-      throw new Error("Transcrição de áudio requer a Mangaba AI ativa no servidor (HF_TOKEN).");
-    }
-
-    // Baixa o áudio pelo endpoint de gravação. Usa o `id` canônico do report
-    // (o callId informado pode ser o SID, que não serve para /recording → 404).
+    // Id canônico do report (o callId informado pode ser o SID, que não serve
+    // para /recording → 404).
     const downloadId = report?.id != null ? String(report.id) : data.callId;
-    const { bytes, contentType } = await downloadThreeCplusRecording(downloadId, token);
-    const asrModel = process.env.HF_ASR_MODEL || DEFAULT_ASR_MODEL;
-    const rawTranscript = await transcribeAudio(bytes, contentType, hfToken, asrModel);
-
-    // LGPD: mascara PII antes de auditar, persistir e exibir.
-    const transcript = redactText(rawTranscript);
-    if (transcript.trim().length < 20) {
-      throw new Error("Transcrição muito curta para auditar.");
-    }
-
     const sid = report?.sid || data.callId;
     const label = `3C Plus · ${sid}`;
     const agentName = data.agentName?.trim() || report?.agent || undefined;
 
-    const analysis = await analyzeTranscript(transcript);
-    // Resumo da auditoria substitui a transcrição completa (não retemos o áudio
-    // transcrito na íntegra).
+    // L2: mesma gravação + mesma ficha → reusa a análise inteira, SEM ASR nem
+    // LLM (caso típico de re-auditoria). Só baixa/transcreve no cache miss.
+    const criteria = await getActiveCriteria();
+    const srcKey = `src:${downloadId}:${criteriaSig(criteria)}`;
+    let analysis = await getCachedAnalysis(srcKey);
+    let topicSource: string;
+    if (analysis) {
+      // Sem transcrição nova: classifica o tema pelo resumo da auditoria.
+      topicSource = analysis.summary;
+    } else {
+      const hfToken = process.env.HF_TOKEN;
+      if (!hfToken) {
+        throw new Error("Transcrição de áudio requer a Mangaba AI ativa no servidor (HF_TOKEN).");
+      }
+      const { bytes, contentType } = await downloadThreeCplusRecording(downloadId, token);
+      const asrModel = process.env.HF_ASR_MODEL || DEFAULT_ASR_MODEL;
+      const rawTranscript = await transcribeAudio(bytes, contentType, hfToken, asrModel);
+      // LGPD: mascara PII antes de auditar, persistir e exibir.
+      const transcript = redactText(rawTranscript);
+      if (transcript.trim().length < 20) {
+        throw new Error("Transcrição muito curta para auditar.");
+      }
+      analysis = await analyzeTranscript(transcript);
+      topicSource = transcript;
+      // Só cacheia análise REAL (Mangaba AI) — nunca o fallback degradado.
+      if (analysis.source === "huggingface") await setCachedAnalysis(srcKey, analysis);
+    }
+
+    // Resumo da auditoria substitui a transcrição completa (não retemos o áudio).
     const auditSummary = buildAuditSummary(analysis);
     const stored = await recordAnalysis({
       analysis,
       origin: "audio",
       label,
       transcript: auditSummary,
-      topicSource: transcript,
+      topicSource,
       agentName,
       sourceCallId: downloadId,
       callDate: report?.call_date_rfc3339 || report?.call_date,

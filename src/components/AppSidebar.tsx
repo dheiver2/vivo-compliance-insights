@@ -20,9 +20,11 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
   SidebarHeader,
+  SidebarFooter,
   useSidebar,
 } from "@/components/ui/sidebar";
 import { VivoLogo } from "@/components/VivoLogo";
+import { AvanttiLogo } from "@/components/AvanttiLogo";
 
 const items = [
   { title: "Dashboard", url: "/dashboard", icon: LayoutDashboard },
@@ -94,6 +96,21 @@ export function AppSidebar() {
           </SidebarGroupContent>
         </SidebarGroup>
       </SidebarContent>
+
+      <SidebarFooter className="border-t border-sidebar-border">
+        {collapsed ? (
+          <div className="flex justify-center py-2">
+            <AvanttiLogo className="text-[10px] text-sidebar-foreground/70" />
+          </div>
+        ) : (
+          <div className="flex flex-col items-center gap-1 py-2 text-center">
+            <span className="text-[9px] uppercase tracking-wider text-sidebar-foreground/50">
+              Consultoria
+            </span>
+            <AvanttiLogo withTagline className="text-base text-sidebar-foreground/80" />
+          </div>
+        )}
+      </SidebarFooter>
     </Sidebar>
   );
 }

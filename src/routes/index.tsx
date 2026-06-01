@@ -13,6 +13,7 @@ import {
   X,
 } from "lucide-react";
 import { VivoLogo } from "@/components/VivoLogo";
+import { AvanttiLogo } from "@/components/AvanttiLogo";
 import { getDashboard } from "@/lib/api/calls.functions";
 import type { DashboardData } from "@/lib/server/calls-store.server";
 
@@ -389,7 +390,11 @@ function Landing() {
               · uma solução <VivoLogo className="h-3 text-primary" />
             </span>
           </div>
-          <p>Compliance &amp; Qualidade · indicadores calculados a partir de ligações reais auditadas.</p>
+          <div className="flex items-center gap-1.5 text-xs">
+            <span>Consultoria</span>
+            <AvanttiLogo className="text-sm text-foreground" />
+          </div>
+          <p className="text-xs">Compliance &amp; Qualidade · ligações reais auditadas.</p>
         </div>
       </footer>
     </div>

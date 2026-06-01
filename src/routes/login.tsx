@@ -2,6 +2,7 @@ import { useState } from "react";
 import { createFileRoute, redirect, useNavigate, useRouter } from "@tanstack/react-router";
 import { Headphones, Lock, Loader2, ArrowRight, ShieldCheck } from "lucide-react";
 import { VivoLogo } from "@/components/VivoLogo";
+import { AvanttiLogo } from "@/components/AvanttiLogo";
 import { getAuthStatus, login } from "@/lib/api/auth.functions";
 
 export const Route = createFileRoute("/login")({
@@ -126,6 +127,11 @@ function LoginPage() {
             Sessão protegida por cookie httpOnly — a senha nunca fica no navegador.
           </div>
         </form>
+
+        <div className="mt-8 flex flex-col items-center gap-1.5">
+          <span className="text-[9px] uppercase tracking-[0.3em] text-white/40">Consultoria</span>
+          <AvanttiLogo withTagline className="text-lg text-white/80" />
+        </div>
       </div>
     </div>
   );

@@ -209,9 +209,13 @@ function AudiosPage() {
   }, [auditedAudios, audioSearch, agentFilter, statusFilter]);
 
   const listMut = useMutation({
-    mutationFn: () =>
+    mutationFn: (vars: { startDate: string; endDate: string }) =>
       listThreeCplusCalls({
-        data: { startDate: startDate.trim(), endDate: endDate.trim(), apiToken: apiToken.trim() },
+        data: {
+          startDate: vars.startDate.trim(),
+          endDate: vars.endDate.trim(),
+          apiToken: apiToken.trim(),
+        },
       }),
     onSuccess: () => {
       // Nova listagem: zera seleção, progresso e players anteriores.
@@ -221,6 +225,27 @@ function AudiosPage() {
       setAudio({});
     },
   });
+
+  // Auto-carrega as gravações recentes (últimos 7 dias) ao abrir a aba, sem o
+  // usuário precisar buscar. Roda só no cliente (evita mismatch de SSR) e usa o
+  // token do servidor. O usuário pode ajustar o período e listar de novo.
+  const autoLoadedRef = useRef(false);
+  useEffect(() => {
+    if (autoLoadedRef.current) return;
+    autoLoadedRef.current = true;
+    const fmt = (d: Date) => {
+      const p = (n: number) => String(n).padStart(2, "0");
+      return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`;
+    };
+    const now = new Date();
+    const past = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+    const s = fmt(past);
+    const e = fmt(now);
+    setStartDate(s);
+    setEndDate(e);
+    listMut.mutate({ startDate: s, endDate: e });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const calls: ThreeCplusCall[] = listMut.data ?? [];
   const recorded = useMemo(() => calls.filter((c) => c.recorded), [calls]);
@@ -426,10 +451,11 @@ function AudiosPage() {
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <Search className="h-4 w-4 text-primary" /> Buscar gravações
+            <Search className="h-4 w-4 text-primary" /> Gravações recentes
           </CardTitle>
           <CardDescription>
-            Conecta-se à API da 3C Plus (somente leitura). A janela de datas é obrigatória.
+            As gravações dos últimos 7 dias carregam automaticamente. Ajuste o período para buscar
+            outras (somente leitura na 3C Plus).
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -475,7 +501,12 @@ function AudiosPage() {
               />
             </div>
           </div>
-          <Button onClick={() => listMut.mutate()} disabled={!canList}>
+          <Button
+            onClick={() =>
+              listMut.mutate({ startDate: startDate.trim(), endDate: endDate.trim() })
+            }
+            disabled={!canList}
+          >
             {listMut.isPending ? (
               <>
                 <Loader2 className="h-4 w-4 mr-2 animate-spin" /> Buscando…

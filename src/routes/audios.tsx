@@ -24,6 +24,11 @@ import {
 import { getSystemStatus, listCalls, type SystemStatus } from "@/lib/api/calls.functions";
 import type { StoredCall } from "@/lib/server/calls-store.server";
 import {
+  assessAuditability,
+  AUDITABILITY_CRITERIA,
+  DEFAULT_MIN_AUDITABLE_SEC,
+} from "@/lib/auditability";
+import {
   AudioLines,
   KeyRound,
   Search,
@@ -102,6 +107,8 @@ function AudiosPage() {
   const [apiToken, setApiToken] = useState("");
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
+  // Duração mínima (s) — critério de auditabilidade aplicado pela API 3C Plus.
+  const [minDuration, setMinDuration] = useState(String(DEFAULT_MIN_AUDITABLE_SEC));
 
   // Seleção e estado da execução em lote.
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -209,14 +216,17 @@ function AudiosPage() {
   }, [auditedAudios, audioSearch, agentFilter, statusFilter]);
 
   const listMut = useMutation({
-    mutationFn: (vars: { startDate: string; endDate: string }) =>
-      listThreeCplusCalls({
+    mutationFn: (vars: { startDate: string; endDate: string }) => {
+      const minSec = Math.max(0, Number(minDuration) || 0);
+      return listThreeCplusCalls({
         data: {
           startDate: vars.startDate.trim(),
           endDate: vars.endDate.trim(),
           apiToken: apiToken.trim(),
+          ...(minSec > 0 ? { minDurationSec: minSec } : {}),
         },
-      }),
+      });
+    },
     onSuccess: () => {
       // Nova listagem: zera seleção, progresso e players anteriores.
       setSelected(new Set());
@@ -255,7 +265,7 @@ function AudiosPage() {
   const [recAgent, setRecAgent] = useState("all");
   const [recCampaign, setRecCampaign] = useState("all");
   const [recQueue, setRecQueue] = useState("all");
-  const [recordedOnly, setRecordedOnly] = useState(false);
+  const [auditableOnly, setAuditableOnly] = useState(false);
 
   const recAgents = useMemo(
     () => [...new Set(calls.map((c) => c.agent).filter(Boolean))].sort((a, b) => a.localeCompare(b)),
@@ -277,7 +287,7 @@ function AudiosPage() {
       if (recAgent !== "all" && c.agent !== recAgent) return false;
       if (recCampaign !== "all" && c.campaign !== recCampaign) return false;
       if (recQueue !== "all" && c.queueName !== recQueue) return false;
-      if (recordedOnly && !c.recorded) return false;
+      if (auditableOnly && !assessAuditability(c).auditable) return false;
       if (
         q &&
         !`${c.id} ${c.agent} ${c.number} ${c.campaign} ${c.queueName}`.toLowerCase().includes(q)
@@ -285,21 +295,26 @@ function AudiosPage() {
         return false;
       return true;
     });
-  }, [calls, recSearch, recAgent, recCampaign, recQueue, recordedOnly]);
-  const recorded = useMemo(() => filteredCalls.filter((c) => c.recorded), [filteredCalls]);
+  }, [calls, recSearch, recAgent, recCampaign, recQueue, auditableOnly]);
+  // Auditáveis = passam nos critérios de elegibilidade (gravação + atendente).
+  // Só essas podem ser selecionadas para auditoria.
+  const auditable = useMemo(
+    () => filteredCalls.filter((c) => assessAuditability(c).auditable),
+    [filteredCalls],
+  );
 
   const recFilterActive =
     recSearch.trim() !== "" ||
     recAgent !== "all" ||
     recCampaign !== "all" ||
     recQueue !== "all" ||
-    recordedOnly;
+    auditableOnly;
 
   const selectedIds = useMemo(
-    () => recorded.map(callKey).filter((k) => selected.has(k)),
-    [recorded, selected],
+    () => auditable.map(callKey).filter((k) => selected.has(k)),
+    [auditable, selected],
   );
-  const allSelected = recorded.length > 0 && selectedIds.length === recorded.length;
+  const allSelected = auditable.length > 0 && selectedIds.length === auditable.length;
 
   function toggle(key: string) {
     if (running) return;
@@ -312,7 +327,7 @@ function AudiosPage() {
 
   function toggleAll() {
     if (running) return;
-    setSelected(allSelected ? new Set() : new Set(recorded.map(callKey)));
+    setSelected(allSelected ? new Set() : new Set(auditable.map(callKey)));
   }
 
   // Auditoria em série das gravações selecionadas. Cada item é uma request
@@ -498,8 +513,9 @@ function AudiosPage() {
             <Search className="h-4 w-4 text-primary" /> Gravações recentes
           </CardTitle>
           <CardDescription>
-            As gravações dos últimos 7 dias carregam automaticamente. Ajuste o período para buscar
-            outras (somente leitura na 3C Plus).
+            As gravações dos últimos 7 dias carregam automaticamente. A duração mínima filtra
+            chamadas curtas (caixa postal/queda) — critério de auditabilidade aplicado pela própria
+            3C Plus. Ajuste o período e liste de novo (somente leitura).
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -519,7 +535,7 @@ function AudiosPage() {
               disabled={listMut.isPending || running}
             />
           </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-[1fr_1fr_auto]">
             <div className="space-y-1.5">
               <Label htmlFor="aud-start" className="text-xs">
                 Data inicial
@@ -541,6 +557,20 @@ function AudiosPage() {
                 value={endDate}
                 onChange={(e) => setEndDate(e.target.value)}
                 placeholder="2026-05-31 23:59:59"
+                disabled={listMut.isPending || running}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="aud-mindur" className="text-xs">
+                Duração mín. (s)
+              </Label>
+              <Input
+                id="aud-mindur"
+                type="number"
+                min={0}
+                value={minDuration}
+                onChange={(e) => setMinDuration(e.target.value)}
+                className="sm:w-28"
                 disabled={listMut.isPending || running}
               />
             </div>
@@ -587,11 +617,12 @@ function AudiosPage() {
               <div>
                 <CardTitle className="text-base">
                   {recFilterActive ? `${filteredCalls.length} de ${calls.length}` : calls.length}{" "}
-                  ligação(ões) · {recorded.length} com gravação
+                  ligação(ões) · {auditable.length} auditável(is)
                 </CardTitle>
                 <CardDescription>
-                  Selecione os áudios que devem passar pela auditoria. Ligações sem gravação não são
-                  selecionáveis. “Ouvir” reproduz a gravação original (áudio não mascarado).
+                  Só ligações <strong>auditáveis</strong> podem ser selecionadas — critérios:{" "}
+                  {AUDITABILITY_CRITERIA.map((c) => c.label).join(" · ")}. “Ouvir” reproduz a
+                  gravação original (áudio não mascarado).
                 </CardDescription>
               </div>
               <div className="flex items-center gap-2">
@@ -599,7 +630,7 @@ function AudiosPage() {
                   variant="outline"
                   size="sm"
                   onClick={toggleAll}
-                  disabled={running || recorded.length === 0}
+                  disabled={running || auditable.length === 0}
                 >
                   {allSelected ? "Limpar seleção" : "Selecionar todas"}
                 </Button>
@@ -678,11 +709,11 @@ function AudiosPage() {
               )}
               <label className="flex cursor-pointer items-center gap-1.5 text-xs text-muted-foreground">
                 <Checkbox
-                  checked={recordedOnly}
-                  onCheckedChange={(v) => setRecordedOnly(Boolean(v))}
+                  checked={auditableOnly}
+                  onCheckedChange={(v) => setAuditableOnly(Boolean(v))}
                   disabled={running}
                 />
-                Só com gravação
+                Só auditáveis
               </label>
               {recFilterActive && (
                 <button
@@ -692,7 +723,7 @@ function AudiosPage() {
                     setRecAgent("all");
                     setRecCampaign("all");
                     setRecQueue("all");
-                    setRecordedOnly(false);
+                    setAuditableOnly(false);
                   }}
                   className="text-xs text-muted-foreground hover:text-foreground hover:underline"
                 >
@@ -724,12 +755,13 @@ function AudiosPage() {
                   const st = progress[key];
                   const checked = selected.has(key);
                   const au = audio[key];
+                  const audit = assessAuditability(c);
                 return (
-                  <div key={key} className="p-3 text-sm">
+                  <div key={key} className={`p-3 text-sm ${audit.auditable ? "" : "opacity-70"}`}>
                     <div className="flex items-center gap-3">
                       <Checkbox
                         checked={checked}
-                        disabled={!c.recorded || running}
+                        disabled={!audit.auditable || running}
                         onCheckedChange={() => toggle(key)}
                         aria-label={`Selecionar ligação ${key}`}
                       />
@@ -762,6 +794,14 @@ function AudiosPage() {
                             </>
                           )}
                         </button>
+                      )}
+                      {!audit.auditable && audit.reason !== "sem gravação" && (
+                        <span
+                          className="flex-shrink-0 text-xs text-warning-foreground"
+                          title="Ligação não auditável — não pode ser selecionada"
+                        >
+                          {audit.reason}
+                        </span>
                       )}
                       <ItemBadge recorded={c.recorded} state={st} />
                     </div>

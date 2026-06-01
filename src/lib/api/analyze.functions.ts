@@ -1186,10 +1186,71 @@ const RecordingInput = z.object({
 // report e tentamos os identificadores candidatos (id canônico, sid e o id
 // extraído da URL `recording`) até um funcionar. O erro final lista o que foi
 // tentado, para diagnóstico.
-async function downloadRecordingByHandle(
-  handle: string,
+// Hosts conhecidos da API 3C Plus (base oficial do SDK + variações observadas).
+const THREECPLUS_API_HOSTS = [
+  "https://3c.fluxoti.com/api/v1",
+  "https://app.3c.fluxoti.com/api/v1",
+  "https://app.3c.plus/api/v1",
+];
+
+type AudioResult = { bytes: Uint8Array; contentType: string };
+
+// Tenta UMA requisição de áudio. Retorna o áudio (ok) ou uma string de status
+// curta (falha). Trata: 200 vazio, JSON com URL embutida (segue 1 nível), e
+// content-type não-áudio. NÃO relança — devolve o status para a matriz seguir.
+async function tryAudioRequest(
+  url: string,
+  headers: Record<string, string>,
   token: string,
-): Promise<{ bytes: Uint8Array; contentType: string }> {
+  followJson = true,
+): Promise<AudioResult | { fail: string }> {
+  let res: Response;
+  try {
+    res = await fetch(url, { headers, redirect: "follow" });
+  } catch (e) {
+    return { fail: `neterr:${e instanceof Error ? e.message.slice(0, 40) : "?"}` };
+  }
+  if (!res.ok) {
+    const body = (await res.text().catch(() => "")).replace(/\s+/g, " ").slice(0, 90);
+    return { fail: `${res.status}:${body}` };
+  }
+  const contentType = res.headers.get("content-type") || "application/octet-stream";
+  const bytes = new Uint8Array(await res.arrayBuffer());
+  if (bytes.byteLength === 0) return { fail: "200-vazio" };
+  // 200 com JSON: provável wrapper com a URL de download — segue 1 nível.
+  if (/json/i.test(contentType)) {
+    if (!followJson) return { fail: "200-json" };
+    try {
+      const obj = JSON.parse(new TextDecoder().decode(bytes)) as Record<string, unknown>;
+      const inner =
+        (obj.url as string) ||
+        (obj.recording as string) ||
+        (obj.link as string) ||
+        ((obj.data as Record<string, unknown>)?.url as string) ||
+        "";
+      if (inner && /^https?:\/\//i.test(inner)) {
+        return tryAudioRequest(maybeAppendToken(inner, token), headers, token, false);
+      }
+    } catch {
+      /* não era JSON utilizável */
+    }
+    return { fail: "200-json-sem-url" };
+  }
+  if (bytes.byteLength > MAX_AUDIO_BYTES) return { fail: "acima-do-limite" };
+  return { bytes, contentType };
+}
+
+function maybeAppendToken(url: string, token: string): string {
+  const is3c = /(3c\.plus|fluxoti\.com)/i.test(url);
+  if (is3c && !/[?&]api_token=/.test(url)) return withApiToken(url, token);
+  return url;
+}
+
+// Estratégia ROBUSTA de download: monta uma matriz de tentativas (campo
+// `recording` do report + hosts × ids × `original` × auth), ordenada por
+// probabilidade, e para no primeiro sucesso. Backoff em rate limit (422 "muitas
+// requisições"). No fim, erro com o status de cada tentativa (diagnóstico).
+async function downloadRecordingByHandle(handle: string, token: string): Promise<AudioResult> {
   let report: ThreeCplusReport | null = null;
   try {
     report = await threeCplusGet<ThreeCplusReport>(`/calls/${encodeURIComponent(handle)}`, token);
@@ -1197,69 +1258,65 @@ async function downloadRecordingByHandle(
     report = null;
   }
 
-  const errors: string[] = [];
-
-  // 1) Caminho preferencial: a URL de gravação que a PRÓPRIA API fornece no
-  // campo `recording`. É o ponteiro canônico do provedor (pode ser URL assinada).
+  const ids = [...new Set(
+    [report?.id, report?.telephony_id, report?.sid, handle]
+      .map((v) => (v == null ? "" : String(v).trim()))
+      .filter(Boolean),
+  )];
   const recUrl = report?.recording?.trim();
+  const bearer = { Accept: "*/*", Authorization: `Bearer ${token}` };
+  const plain = { Accept: "*/*" };
+
+  type Attempt = { label: string; url: string; headers: Record<string, string> };
+  const attempts: Attempt[] = [];
+
+  // 1) Campo `recording` do report (com token, como está, e com Bearer).
   if (recUrl && /^https?:\/\//i.test(recUrl)) {
-    try {
-      return await downloadAudioFromUrl(recUrl, token);
-    } catch (e) {
-      errors.push(`recording-url: ${e instanceof Error ? e.message : String(e)}`);
+    attempts.push({ label: "rec-field+token", url: maybeAppendToken(recUrl, token), headers: plain });
+    attempts.push({ label: "rec-field-asis", url: recUrl, headers: plain });
+    attempts.push({ label: "rec-field+bearer", url: recUrl, headers: bearer });
+  }
+
+  // 2) Matriz endpoint: original=true primeiro (sem ele a API tenta conversão
+  //    inexistente → 404), depois sem; query api_token e depois Bearer.
+  for (const id of ids) {
+    for (const host of THREECPLUS_API_HOSTS) {
+      const path = `${host}/calls/${encodeURIComponent(id)}/recording`;
+      attempts.push({ label: `${host.replace(/^https:\/\//, "")}|${id}|orig|q`, url: `${path}?original=true&api_token=${encodeURIComponent(token)}`, headers: plain });
+      attempts.push({ label: `${host.replace(/^https:\/\//, "")}|${id}|q`, url: withApiToken(path, token), headers: plain });
+      attempts.push({ label: `${host.replace(/^https:\/\//, "")}|${id}|orig|bearer`, url: `${path}?original=true`, headers: bearer });
     }
   }
 
-  // 2) Endpoint /calls/{id}/recording com identificadores candidatos.
-  const candidates = [
-    report?.id,
-    report?.telephony_id,
-    report?.call_id,
-    report?.call_history_id,
-    report?.uniqueid,
-    report?.sid,
-    handle,
-  ];
-  const tried = [...new Set(candidates.map((v) => (v == null ? "" : String(v).trim())).filter(Boolean))];
-  for (const id of tried) {
-    try {
-      return await downloadThreeCplusRecording(id, token, 3);
-    } catch (e) {
-      errors.push(`id ${id}: ${e instanceof Error ? e.message : String(e)}`);
+  // Dedupe por (url + auth) e limita a 16 tentativas.
+  const seen = new Set<string>();
+  const unique = attempts
+    .filter((a) => {
+      const k = a.url + (a.headers.Authorization || "");
+      if (seen.has(k)) return false;
+      seen.add(k);
+      return true;
+    })
+    .slice(0, 16);
+
+  const log: string[] = [];
+  for (const a of unique) {
+    let r = await tryAudioRequest(a.url, a.headers, token);
+    // Rate limit: aguarda ~5 s e tenta a MESMA uma vez.
+    if ("fail" in r && /^422:.*muitas requi/i.test(r.fail)) {
+      await new Promise((res) => setTimeout(res, 5200));
+      r = await tryAudioRequest(a.url, a.headers, token);
     }
+    if (!("fail" in r)) return r;
+    log.push(`${a.label}→${r.fail}`);
   }
 
-  // Diagnóstico: campos de id disponíveis no report ajudam a achar o correto.
   const reportInfo = report
-    ? `report{id=${report.id ?? "-"}, sid=${report.sid ?? "-"}, telephony_id=${report.telephony_id ?? "-"}, recorded=${report.recorded ?? "-"}, recording=${report.recording ? "presente" : "(vazio)"}}`
-    : "report=null (GET /calls/{id} falhou)";
+    ? `report{id=${report.id ?? "-"}, telephony_id=${report.telephony_id ?? "-"}, recorded=${report.recorded ?? "-"}, recording=${recUrl ? "presente" : "(vazio)"}}`
+    : "report=null";
   throw new Error(
-    `Não foi possível baixar a gravação na 3C Plus. ${reportInfo}. Tentativas: ${errors.join(" | ") || "nenhuma"}`,
+    `Não foi possível baixar a gravação na 3C Plus após ${unique.length} estratégias. ${reportInfo}. ${log.join(" | ")}`,
   );
-}
-
-// Baixa um arquivo de áudio de uma URL arbitrária (campo `recording` da 3C Plus).
-// Acrescenta o api_token se a URL for de um host da 3C Plus e ainda não o tiver;
-// URLs assinadas (S3/CDN) são buscadas como estão.
-async function downloadAudioFromUrl(
-  rawUrl: string,
-  token: string,
-): Promise<{ bytes: Uint8Array; contentType: string }> {
-  let url = rawUrl;
-  const is3c = /(3c\.plus|fluxoti\.com)/i.test(url);
-  if (is3c && !/[?&]api_token=/.test(url)) {
-    url = withApiToken(url, token);
-  }
-  const res = await fetch(url, { headers: { Accept: "*/*" } });
-  if (!res.ok) {
-    const body = (await res.text().catch(() => "")).slice(0, 200);
-    throw new Error(`${res.status} em ${rawUrl.slice(0, 80)}: ${body}`);
-  }
-  const contentType = res.headers.get("content-type") || "application/octet-stream";
-  const bytes = new Uint8Array(await res.arrayBuffer());
-  if (bytes.byteLength === 0) throw new Error("resposta vazia");
-  if (bytes.byteLength > MAX_AUDIO_BYTES) throw new Error("gravação acima do limite de tamanho");
-  return { bytes, contentType };
 }
 
 // Baixa a gravação de uma ligação 3C Plus e devolve o áudio em base64 para o

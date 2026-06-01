@@ -248,8 +248,52 @@ function AudiosPage() {
   }, []);
 
   const calls: ThreeCplusCall[] = listMut.data ?? [];
-  const recorded = useMemo(() => calls.filter((c) => c.recorded), [calls]);
   const canList = startDate.trim().length > 0 && endDate.trim().length > 0 && !listMut.isPending;
+
+  // Filtros das gravações recentes (metadados da 3C Plus).
+  const [recSearch, setRecSearch] = useState("");
+  const [recAgent, setRecAgent] = useState("all");
+  const [recCampaign, setRecCampaign] = useState("all");
+  const [recQueue, setRecQueue] = useState("all");
+  const [recordedOnly, setRecordedOnly] = useState(false);
+
+  const recAgents = useMemo(
+    () => [...new Set(calls.map((c) => c.agent).filter(Boolean))].sort((a, b) => a.localeCompare(b)),
+    [calls],
+  );
+  const recCampaigns = useMemo(
+    () =>
+      [...new Set(calls.map((c) => c.campaign).filter(Boolean))].sort((a, b) => a.localeCompare(b)),
+    [calls],
+  );
+  const recQueues = useMemo(
+    () =>
+      [...new Set(calls.map((c) => c.queueName).filter(Boolean))].sort((a, b) => a.localeCompare(b)),
+    [calls],
+  );
+  const filteredCalls = useMemo(() => {
+    const q = recSearch.trim().toLowerCase();
+    return calls.filter((c) => {
+      if (recAgent !== "all" && c.agent !== recAgent) return false;
+      if (recCampaign !== "all" && c.campaign !== recCampaign) return false;
+      if (recQueue !== "all" && c.queueName !== recQueue) return false;
+      if (recordedOnly && !c.recorded) return false;
+      if (
+        q &&
+        !`${c.id} ${c.agent} ${c.number} ${c.campaign} ${c.queueName}`.toLowerCase().includes(q)
+      )
+        return false;
+      return true;
+    });
+  }, [calls, recSearch, recAgent, recCampaign, recQueue, recordedOnly]);
+  const recorded = useMemo(() => filteredCalls.filter((c) => c.recorded), [filteredCalls]);
+
+  const recFilterActive =
+    recSearch.trim() !== "" ||
+    recAgent !== "all" ||
+    recCampaign !== "all" ||
+    recQueue !== "all" ||
+    recordedOnly;
 
   const selectedIds = useMemo(
     () => recorded.map(callKey).filter((k) => selected.has(k)),
@@ -542,7 +586,8 @@ function AudiosPage() {
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
                 <CardTitle className="text-base">
-                  {calls.length} ligação(ões) · {recorded.length} com gravação
+                  {recFilterActive ? `${filteredCalls.length} de ${calls.length}` : calls.length}{" "}
+                  ligação(ões) · {recorded.length} com gravação
                 </CardTitle>
                 <CardDescription>
                   Selecione os áudios que devem passar pela auditoria. Ligações sem gravação não são
@@ -576,6 +621,86 @@ function AudiosPage() {
               </div>
             </div>
 
+            {/* Filtros por metadados das gravações */}
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="relative min-w-[170px] flex-1">
+                <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  value={recSearch}
+                  onChange={(e) => setRecSearch(e.target.value)}
+                  placeholder="Buscar por atendente, número, campanha…"
+                  className="h-9 pl-8 text-sm"
+                  disabled={running}
+                />
+              </div>
+              <Select value={recAgent} onValueChange={setRecAgent} disabled={running}>
+                <SelectTrigger className="h-9 w-[160px]">
+                  <SelectValue placeholder="Atendente" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todos os atendentes</SelectItem>
+                  {recAgents.map((a) => (
+                    <SelectItem key={a} value={a}>
+                      {a}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {recCampaigns.length > 0 && (
+                <Select value={recCampaign} onValueChange={setRecCampaign} disabled={running}>
+                  <SelectTrigger className="h-9 w-[150px]">
+                    <SelectValue placeholder="Campanha" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todas as campanhas</SelectItem>
+                    {recCampaigns.map((c) => (
+                      <SelectItem key={c} value={c}>
+                        {c}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+              {recQueues.length > 0 && (
+                <Select value={recQueue} onValueChange={setRecQueue} disabled={running}>
+                  <SelectTrigger className="h-9 w-[140px]">
+                    <SelectValue placeholder="Fila" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todas as filas</SelectItem>
+                    {recQueues.map((qn) => (
+                      <SelectItem key={qn} value={qn}>
+                        {qn}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+              <label className="flex cursor-pointer items-center gap-1.5 text-xs text-muted-foreground">
+                <Checkbox
+                  checked={recordedOnly}
+                  onCheckedChange={(v) => setRecordedOnly(Boolean(v))}
+                  disabled={running}
+                />
+                Só com gravação
+              </label>
+              {recFilterActive && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setRecSearch("");
+                    setRecAgent("all");
+                    setRecCampaign("all");
+                    setRecQueue("all");
+                    setRecordedOnly(false);
+                  }}
+                  className="text-xs text-muted-foreground hover:text-foreground hover:underline"
+                >
+                  limpar
+                </button>
+              )}
+            </div>
+
             {total > 0 && (
               <div className="space-y-1.5">
                 <Progress value={pct} />
@@ -588,12 +713,17 @@ function AudiosPage() {
           </CardHeader>
 
           <CardContent className="pt-0">
-            <div className="divide-y rounded-md border">
-              {calls.map((c) => {
-                const key = callKey(c);
-                const st = progress[key];
-                const checked = selected.has(key);
-                const au = audio[key];
+            {filteredCalls.length === 0 ? (
+              <p className="py-8 text-center text-sm text-muted-foreground">
+                Nenhuma gravação para esse filtro.
+              </p>
+            ) : (
+              <div className="divide-y rounded-md border">
+                {filteredCalls.map((c) => {
+                  const key = callKey(c);
+                  const st = progress[key];
+                  const checked = selected.has(key);
+                  const au = audio[key];
                 return (
                   <div key={key} className="p-3 text-sm">
                     <div className="flex items-center gap-3">
@@ -644,8 +774,9 @@ function AudiosPage() {
                     )}
                   </div>
                 );
-              })}
-            </div>
+                })}
+              </div>
+            )}
           </CardContent>
         </Card>
       )}

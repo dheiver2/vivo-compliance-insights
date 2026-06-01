@@ -898,22 +898,44 @@ function maskPhone(num: string): string {
 
 // Faz GET autenticado na API 3C Plus e devolve o JSON já desembrulhado quando a
 // resposta vem no padrão Laravel `{ data: ... }`.
-async function threeCplusGet<T>(path: string, token: string): Promise<T> {
+//
+// Resiliência: a 3C Plus às vezes demora e o Cloudflare devolve 5xx/524 (timeout
+// na origem) de forma TRANSITÓRIA. Por isso, com timeout próprio (AbortController)
+// e retry com backoff em 5xx/timeout/rede — só erros definitivos (4xx) sobem na hora.
+async function threeCplusGet<T>(path: string, token: string, maxAttempts = 3): Promise<T> {
   const url = withApiToken(`${THREECPLUS_BASE}${path}`, token);
-  let res: Response;
-  try {
-    res = await fetch(url, { headers: { Accept: "application/json" } });
-  } catch (error) {
-    throw new Error(
-      `Falha ao acessar a 3C Plus: ${error instanceof Error ? error.message : "erro de rede"}`,
-    );
+  let lastErr = "";
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), 25_000);
+    let res: Response;
+    try {
+      res = await fetch(url, { headers: { Accept: "application/json" }, signal: ctrl.signal });
+    } catch (error) {
+      // Abort/rede: transitório — tenta de novo com backoff.
+      lastErr = error instanceof Error ? error.message : "erro de rede";
+      clearTimeout(timer);
+      if (attempt < maxAttempts) {
+        await new Promise((r) => setTimeout(r, 1500 * attempt));
+        continue;
+      }
+      throw new Error(`Falha ao acessar a 3C Plus (após ${maxAttempts} tentativas): ${lastErr}`);
+    }
+    clearTimeout(timer);
+    if (res.ok) {
+      const payload = (await res.json()) as { data?: T } & T;
+      return (payload?.data ?? payload) as T;
+    }
+    const detail = (await res.text().catch(() => "")).slice(0, 200);
+    // 5xx (incl. 524 do Cloudflare): origem instável/lenta — retry. 4xx: definitivo.
+    if (res.status >= 500 && attempt < maxAttempts) {
+      lastErr = `${res.status}: ${detail}`;
+      await new Promise((r) => setTimeout(r, 1500 * attempt));
+      continue;
+    }
+    throw new Error(`3C Plus ${res.status}: ${detail}`);
   }
-  if (!res.ok) {
-    const detail = await res.text().catch(() => "");
-    throw new Error(`3C Plus ${res.status}: ${detail.slice(0, 200)}`);
-  }
-  const payload = (await res.json()) as { data?: T } & T;
-  return (payload?.data ?? payload) as T;
+  throw new Error(`3C Plus: falha após ${maxAttempts} tentativas. ${lastErr}`);
 }
 
 // Baixa a gravação de uma ligação na 3C Plus.

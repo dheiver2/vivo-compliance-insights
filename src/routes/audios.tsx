@@ -236,9 +236,9 @@ function AudiosPage() {
     },
   });
 
-  // Auto-carrega as gravações recentes (últimos 7 dias) ao abrir a aba, sem o
-  // usuário precisar buscar. Roda só no cliente (evita mismatch de SSR) e usa o
-  // token do servidor. O usuário pode ajustar o período e listar de novo.
+  // Auto-carrega as gravações recentes (últimos 2 dias) ao abrir a aba, sem o
+  // usuário precisar buscar. Janela curta para uma busca leve (a 3C Plus pode dar
+  // timeout/524 em janelas grandes). Roda só no cliente; usa o token do servidor.
   const autoLoadedRef = useRef(false);
   useEffect(() => {
     if (autoLoadedRef.current) return;
@@ -248,7 +248,7 @@ function AudiosPage() {
       return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`;
     };
     const now = new Date();
-    const past = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+    const past = new Date(now.getTime() - 2 * 24 * 60 * 60 * 1000);
     const s = fmt(past);
     const e = fmt(now);
     setStartDate(s);
@@ -513,9 +513,10 @@ function AudiosPage() {
             <Search className="h-4 w-4 text-primary" /> Gravações recentes
           </CardTitle>
           <CardDescription>
-            As gravações dos últimos 7 dias carregam automaticamente. A duração mínima filtra
+            As gravações dos últimos 2 dias carregam automaticamente. A duração mínima filtra
             chamadas curtas (caixa postal/queda) — critério de auditabilidade aplicado pela própria
-            3C Plus. Ajuste o período e liste de novo (somente leitura).
+            3C Plus. Ajuste o período e liste de novo (períodos muito longos podem dar timeout na 3C
+            Plus).
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">

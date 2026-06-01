@@ -283,10 +283,10 @@ function Dashboard() {
                 </div>
               </CardHeader>
               <CardContent>
-                {data.dailyTrend.length < 2 ? (
+                {data.dailyTrend.length === 0 ? (
                   <div className="flex items-center justify-center h-[280px] text-sm text-muted-foreground text-center px-6">
-                    Tendência aparece quando houver análises em pelo menos 2 {gMeta.unit}{" "}
-                    diferentes.
+                    A evolução aparece assim que houver ligações auditadas — importe e audite
+                    gravações na aba Áudios.
                   </div>
                 ) : (
                   <ResponsiveContainer width="100%" height={280}>

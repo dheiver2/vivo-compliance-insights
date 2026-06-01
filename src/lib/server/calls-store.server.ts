@@ -278,14 +278,22 @@ export async function recordAnalysis(input: {
   agentName?: string;
   // ID da 3C Plus usado para baixar a gravação (habilita o player de áudio bruto).
   sourceCallId?: string;
+  // Data/hora REAL da ligação (ISO/RFC3339). Usada como timestamp do registro
+  // para que o dashboard reflita QUANDO a chamada aconteceu — não a hora da
+  // auditoria. Se ausente/ inválida, usa o instante da auditoria.
+  callDate?: string;
 }): Promise<StoredCall> {
   await ensureLoaded();
   const { analysis, origin, label, transcript } = input;
   const n = seq++;
+  const parsedCallDate = input.callDate ? Date.parse(input.callDate) : NaN;
+  const createdAt = Number.isNaN(parsedCallDate)
+    ? new Date().toISOString()
+    : new Date(parsedCallDate).toISOString();
   const record: StoredCall = {
     id: `C-${pad(10000 + n, 5)}`,
     protocol: `VV-${pad(880000 + n, 6)}`,
-    createdAt: new Date().toISOString(),
+    createdAt,
     origin,
     label,
     agentName: normalizeAgentName(input.agentName),

@@ -1187,6 +1187,7 @@ export const analyzeThreeCplusCall = createServerFn({ method: "POST" })
       topicSource: transcript,
       agentName,
       sourceCallId: downloadId,
+      callDate: report?.call_date_rfc3339 || report?.call_date,
     });
 
     return {
@@ -1471,6 +1472,7 @@ export const ingestThreeCplusBatch = createServerFn({ method: "POST" })
           topicSource: transcript,
           agentName: r.agent || undefined,
           sourceCallId: callId,
+          callDate: r.call_date_rfc3339 || r.call_date,
         });
         ingested++;
       } catch (error) {

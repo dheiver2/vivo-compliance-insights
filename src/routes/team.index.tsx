@@ -81,7 +81,15 @@ function TeamPage() {
             Ranking de atendentes por score de compliance — derivado das ligações auditadas
           </p>
         </div>
-        <RefreshButton onClick={() => refetch()} busy={isFetching} updatedAt={dataUpdatedAt} />
+        <div className="flex items-center gap-3">
+          <Link
+            to="/coaching"
+            className="flex items-center gap-1 text-xs font-medium text-primary hover:underline"
+          >
+            Ver Coaching <ChevronRight className="h-3.5 w-3.5" />
+          </Link>
+          <RefreshButton onClick={() => refetch()} busy={isFetching} updatedAt={dataUpdatedAt} />
+        </div>
       </header>
 
       {isLoading && (

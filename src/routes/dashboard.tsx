@@ -21,6 +21,7 @@ import {
   Smile,
   Users,
   Cpu,
+  ArrowRight,
 } from "lucide-react";
 import {
   LineChart,
@@ -179,11 +180,13 @@ function Dashboard() {
             <span className="h-2 w-2 rounded-full bg-success animate-pulse" />
             {data ? `${data.modelUsage.length} componentes de IA em uso` : "carregando…"}
           </div>
-          <RefreshButton
-            onClick={() => refetch()}
-            busy={isFetching}
-            updatedAt={dataUpdatedAt}
-          />
+          <Link
+            to="/relatorios"
+            className="flex items-center gap-1 text-xs font-medium text-primary hover:underline"
+          >
+            Relatórios <ArrowRight className="h-3.5 w-3.5" />
+          </Link>
+          <RefreshButton onClick={() => refetch()} busy={isFetching} updatedAt={dataUpdatedAt} />
         </div>
       </header>
 
@@ -368,11 +371,19 @@ function Dashboard() {
 
           <section className="grid grid-cols-1 lg:grid-cols-2 gap-4">
             <Card>
-              <CardHeader>
-                <CardTitle>Ficha de Monitoria — Itens auditados</CardTitle>
-                <CardDescription>
-                  Aderência média por item de compliance (todas as análises)
-                </CardDescription>
+              <CardHeader className="flex-row items-start justify-between gap-3 space-y-0">
+                <div className="space-y-1.5">
+                  <CardTitle>Scorecard — Itens auditados</CardTitle>
+                  <CardDescription>
+                    Aderência média por critério de compliance (todas as análises)
+                  </CardDescription>
+                </div>
+                <Link
+                  to="/scorecards"
+                  className="flex shrink-0 items-center gap-1 text-xs font-medium text-primary hover:underline"
+                >
+                  Editar <ArrowRight className="h-3.5 w-3.5" />
+                </Link>
               </CardHeader>
               <CardContent className="space-y-4">
                 {data.complianceItems.map((item) => (
@@ -431,9 +442,19 @@ function Dashboard() {
           </section>
 
           <Card>
-            <CardHeader>
-              <CardTitle>Ligações recentes</CardTitle>
-              <CardDescription>Últimas auditorias processadas pelos agentes de IA</CardDescription>
+            <CardHeader className="flex-row items-center justify-between gap-3 space-y-0">
+              <div className="space-y-1.5">
+                <CardTitle>Ligações recentes</CardTitle>
+                <CardDescription>
+                  Últimas auditorias processadas pelos agentes de IA
+                </CardDescription>
+              </div>
+              <Link
+                to="/calls"
+                className="flex shrink-0 items-center gap-1 text-xs font-medium text-primary hover:underline"
+              >
+                Ver todas <ArrowRight className="h-3.5 w-3.5" />
+              </Link>
             </CardHeader>
             <CardContent className="overflow-x-auto">
               <table className="w-full text-sm">
@@ -455,7 +476,15 @@ function Dashboard() {
                       key={c.id}
                       className="border-b border-border/50 hover:bg-secondary/40 transition-colors"
                     >
-                      <td className="py-3 px-2 font-mono text-xs text-primary">{c.protocol}</td>
+                      <td className="py-3 px-2 font-mono text-xs">
+                        <Link
+                          to="/calls/$callId"
+                          params={{ callId: c.id }}
+                          className="text-primary hover:underline"
+                        >
+                          {c.protocol}
+                        </Link>
+                      </td>
                       <td className="py-3 px-2 text-muted-foreground text-xs">
                         {new Date(c.createdAt).toLocaleString("pt-BR")}
                       </td>

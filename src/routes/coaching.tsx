@@ -84,14 +84,22 @@ function CoachingPage() {
             auditadas.
           </p>
         </div>
-        <RefreshButton
-          onClick={() => {
-            agentsQ.refetch();
-            dashQ.refetch();
-          }}
-          busy={agentsQ.isFetching || dashQ.isFetching}
-          updatedAt={agentsQ.dataUpdatedAt}
-        />
+        <div className="flex items-center gap-3">
+          <Link
+            to="/team"
+            className="flex items-center gap-1 text-xs font-medium text-primary hover:underline"
+          >
+            Ver Equipe <ChevronRight className="h-3.5 w-3.5" />
+          </Link>
+          <RefreshButton
+            onClick={() => {
+              agentsQ.refetch();
+              dashQ.refetch();
+            }}
+            busy={agentsQ.isFetching || dashQ.isFetching}
+            updatedAt={agentsQ.dataUpdatedAt}
+          />
+        </div>
       </header>
 
       {isLoading && (

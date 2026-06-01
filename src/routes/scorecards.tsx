@@ -1,5 +1,5 @@
-import { createFileRoute } from "@tanstack/react-router";
-import { ClipboardCheck } from "lucide-react";
+import { createFileRoute, Link } from "@tanstack/react-router";
+import { ClipboardCheck, ArrowRight } from "lucide-react";
 import { ScorecardManager } from "@/components/ScorecardManager";
 
 export const Route = createFileRoute("/scorecards")({
@@ -31,6 +31,18 @@ function ScorecardsPage() {
       </header>
 
       <ScorecardManager />
+
+      <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border/60 bg-muted/20 p-4 text-sm">
+        <span className="text-muted-foreground">
+          Ajustou os critérios? As mudanças valem para novas auditorias.
+        </span>
+        <Link
+          to="/audios"
+          className="inline-flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90"
+        >
+          Auditar áudios <ArrowRight className="h-4 w-4" />
+        </Link>
+      </div>
     </div>
   );
 }

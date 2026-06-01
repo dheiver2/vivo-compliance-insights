@@ -5,6 +5,13 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectTrigger,
+  SelectValue,
+  SelectContent,
+  SelectItem,
+} from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Progress } from "@/components/ui/progress";
 import {
@@ -178,6 +185,25 @@ function AudiosPage() {
     [auditedQ.data],
   );
 
+  // Filtros do acervo de áudios (metadados do store: busca, atendente, status).
+  const [audioSearch, setAudioSearch] = useState("");
+  const [agentFilter, setAgentFilter] = useState("all");
+  const [statusFilter, setStatusFilter] = useState("all");
+
+  const agentsInAudios = useMemo(
+    () => [...new Set(auditedAudios.map((c) => c.agentName))].sort((a, b) => a.localeCompare(b)),
+    [auditedAudios],
+  );
+  const filteredAudios = useMemo(() => {
+    const q = audioSearch.trim().toLowerCase();
+    return auditedAudios.filter((c) => {
+      if (agentFilter !== "all" && c.agentName !== agentFilter) return false;
+      if (statusFilter !== "all" && c.status !== statusFilter) return false;
+      if (q && !`${c.id} ${c.agentName} ${c.topic}`.toLowerCase().includes(q)) return false;
+      return true;
+    });
+  }, [auditedAudios, audioSearch, agentFilter, statusFilter]);
+
   const listMut = useMutation({
     mutationFn: () =>
       listThreeCplusCalls({
@@ -308,7 +334,7 @@ function AudiosPage() {
             Gravações de áudio do acervo. Ouça o áudio original; a análise fica na ficha.
           </CardDescription>
         </CardHeader>
-        <CardContent className="pt-0">
+        <CardContent className="pt-0 space-y-3">
           {auditedQ.isLoading ? (
             <div className="flex items-center justify-center py-10 text-muted-foreground">
               <Loader2 className="h-5 w-5 animate-spin" />
@@ -318,24 +344,74 @@ function AudiosPage() {
               Nenhum áudio no acervo ainda. Selecione gravações abaixo para auditar.
             </p>
           ) : (
-            <div className="divide-y rounded-md border">
-              {auditedAudios.map((c) => {
-                const handle = recordingHandle(c);
-                return (
-                  <RawAudioRow
-                    key={c.id}
-                    call={c}
-                    handle={handle}
-                    apiToken={apiToken.trim()}
-                    au={audio[handle]}
-                    onToggleAudio={() => toggleAudio(handle)}
-                    analyzeState={rowAnalyze[c.id]}
-                    onAnalyze={() => analyzeOne(c.id, handle)}
-                    running={running}
+            <>
+              {/* Filtros por metadados do acervo */}
+              <div className="flex flex-wrap items-center gap-2">
+                <div className="relative min-w-[180px] flex-1">
+                  <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+                  <Input
+                    value={audioSearch}
+                    onChange={(e) => setAudioSearch(e.target.value)}
+                    placeholder="Buscar por id, atendente ou tema…"
+                    className="h-9 pl-8 text-sm"
                   />
-                );
-              })}
-            </div>
+                </div>
+                <Select value={agentFilter} onValueChange={setAgentFilter}>
+                  <SelectTrigger className="h-9 w-[180px]">
+                    <SelectValue placeholder="Atendente" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todos os atendentes</SelectItem>
+                    {agentsInAudios.map((a) => (
+                      <SelectItem key={a} value={a}>
+                        {a}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Select value={statusFilter} onValueChange={setStatusFilter}>
+                  <SelectTrigger className="h-9 w-[150px]">
+                    <SelectValue placeholder="Status" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todos os status</SelectItem>
+                    <SelectItem value="approved">Aprovado</SelectItem>
+                    <SelectItem value="warning">Atenção</SelectItem>
+                    <SelectItem value="critical">Crítico</SelectItem>
+                  </SelectContent>
+                </Select>
+                {(audioSearch || agentFilter !== "all" || statusFilter !== "all") && (
+                  <span className="text-xs text-muted-foreground">
+                    {filteredAudios.length} de {auditedAudios.length}
+                  </span>
+                )}
+              </div>
+
+              {filteredAudios.length === 0 ? (
+                <p className="py-8 text-center text-sm text-muted-foreground">
+                  Nenhum áudio para esse filtro.
+                </p>
+              ) : (
+                <div className="divide-y rounded-md border">
+                  {filteredAudios.map((c) => {
+                    const handle = recordingHandle(c);
+                    return (
+                      <RawAudioRow
+                        key={c.id}
+                        call={c}
+                        handle={handle}
+                        apiToken={apiToken.trim()}
+                        au={audio[handle]}
+                        onToggleAudio={() => toggleAudio(handle)}
+                        analyzeState={rowAnalyze[c.id]}
+                        onAnalyze={() => analyzeOne(c.id, handle)}
+                        running={running}
+                      />
+                    );
+                  })}
+                </div>
+              )}
+            </>
           )}
         </CardContent>
       </Card>

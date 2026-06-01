@@ -933,12 +933,12 @@ async function threeCplusGet<T>(path: string, token: string): Promise<T> {
 async function downloadThreeCplusRecording(
   callId: string,
   token: string,
+  maxAttempts = 6,
 ): Promise<{ bytes: Uint8Array; contentType: string }> {
   const url = withApiToken(
     `${THREECPLUS_BASE}/calls/${encodeURIComponent(callId)}/recording`,
     token,
   );
-  const maxAttempts = 6;
   let sawRateLimit = false;
   let saw404 = false;
   let lastStatus = 0;
@@ -1175,18 +1175,44 @@ const RecordingInput = z.object({
   apiToken: z.string().optional().default(""),
 });
 
-// Resolve o id canônico da ligação para baixar a gravação. Registros antigos
-// guardaram o SID no rótulo, que NÃO serve para o endpoint /recording (responde
-// 404); consultando /calls/{handle} obtemos o `id` correto do report. Se a
-// consulta falhar, mantém o handle (comportamento anterior).
-async function resolveRecordingId(handle: string, token: string): Promise<string> {
+// Baixa a gravação a partir do handle salvo (id OU sid). Registros antigos
+// guardaram o SID — que pode não servir para /recording (404). Consultamos o
+// report e tentamos os identificadores candidatos (id canônico, sid e o id
+// extraído da URL `recording`) até um funcionar. O erro final lista o que foi
+// tentado, para diagnóstico.
+async function downloadRecordingByHandle(
+  handle: string,
+  token: string,
+): Promise<{ bytes: Uint8Array; contentType: string }> {
+  let report: ThreeCplusReport | null = null;
   try {
-    const r = await threeCplusGet<ThreeCplusReport>(`/calls/${encodeURIComponent(handle)}`, token);
-    if (r && r.id != null) return String(r.id);
+    report = await threeCplusGet<ThreeCplusReport>(`/calls/${encodeURIComponent(handle)}`, token);
   } catch {
-    /* segue com o handle */
+    report = null;
   }
-  return handle;
+  const candidates: string[] = [];
+  if (report?.id != null) candidates.push(String(report.id));
+  if (report?.sid) candidates.push(String(report.sid));
+  if (report?.recording) {
+    const m = report.recording.match(/calls\/([^/?#]+)\/recording/);
+    if (m) candidates.push(m[1]);
+  }
+  candidates.push(handle);
+  const tried = [...new Set(candidates.map((s) => s.trim()).filter(Boolean))];
+
+  let lastError: unknown = null;
+  for (const id of tried) {
+    try {
+      // Menos tentativas por candidato para não estourar o tempo total.
+      return await downloadThreeCplusRecording(id, token, 3);
+    } catch (e) {
+      lastError = e;
+    }
+  }
+  const detail = lastError instanceof Error ? lastError.message : "sem detalhe";
+  throw new Error(
+    `Não foi possível baixar a gravação na 3C Plus. IDs tentados: ${tried.join(", ") || handle}. ${detail}`,
+  );
 }
 
 // Baixa a gravação de uma ligação 3C Plus e devolve o áudio em base64 para o
@@ -1200,8 +1226,7 @@ export const getThreeCplusRecording = createServerFn({ method: "POST" })
       throw new Error("Sessão necessária para ouvir a gravação.");
     }
     const token = resolveThreeCplusToken(data.apiToken);
-    const downloadId = await resolveRecordingId(data.callId, token);
-    const { bytes, contentType } = await downloadThreeCplusRecording(downloadId, token);
+    const { bytes, contentType } = await downloadRecordingByHandle(data.callId, token);
     const base64 = Buffer.from(bytes).toString("base64");
     return { base64, contentType: contentType || "audio/mpeg" };
   });

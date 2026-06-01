@@ -975,7 +975,7 @@ async function downloadThreeCplusRecording(
       return { bytes, contentType };
     }
     lastStatus = res.status;
-    lastDetail = (await res.text().catch(() => "")).slice(0, 160);
+    lastDetail = (await res.text().catch(() => "")).slice(0, 300);
     const isRateLimit = res.status === 422 && /muitas requisi/i.test(lastDetail);
     if (isRateLimit) {
       sawRateLimit = true;
@@ -1041,6 +1041,12 @@ interface ThreeCplusReport {
   queue_name?: string;
   recorded?: boolean;
   recording?: string;
+  // Identificadores alternativos que algumas instalações da 3C Plus usam para a
+  // gravação (tentados como candidatos no download).
+  telephony_id?: string | number;
+  call_id?: string | number;
+  call_history_id?: string | number;
+  uniqueid?: string;
 }
 
 function toThreeCplusCall(r: ThreeCplusReport): ThreeCplusCall {
@@ -1190,29 +1196,70 @@ async function downloadRecordingByHandle(
   } catch {
     report = null;
   }
-  const candidates: string[] = [];
-  if (report?.id != null) candidates.push(String(report.id));
-  if (report?.sid) candidates.push(String(report.sid));
-  if (report?.recording) {
-    const m = report.recording.match(/calls\/([^/?#]+)\/recording/);
-    if (m) candidates.push(m[1]);
-  }
-  candidates.push(handle);
-  const tried = [...new Set(candidates.map((s) => s.trim()).filter(Boolean))];
 
-  let lastError: unknown = null;
-  for (const id of tried) {
+  const errors: string[] = [];
+
+  // 1) Caminho preferencial: a URL de gravação que a PRÓPRIA API fornece no
+  // campo `recording`. É o ponteiro canônico do provedor (pode ser URL assinada).
+  const recUrl = report?.recording?.trim();
+  if (recUrl && /^https?:\/\//i.test(recUrl)) {
     try {
-      // Menos tentativas por candidato para não estourar o tempo total.
-      return await downloadThreeCplusRecording(id, token, 3);
+      return await downloadAudioFromUrl(recUrl, token);
     } catch (e) {
-      lastError = e;
+      errors.push(`recording-url: ${e instanceof Error ? e.message : String(e)}`);
     }
   }
-  const detail = lastError instanceof Error ? lastError.message : "sem detalhe";
+
+  // 2) Endpoint /calls/{id}/recording com identificadores candidatos.
+  const candidates = [
+    report?.id,
+    report?.telephony_id,
+    report?.call_id,
+    report?.call_history_id,
+    report?.uniqueid,
+    report?.sid,
+    handle,
+  ];
+  const tried = [...new Set(candidates.map((v) => (v == null ? "" : String(v).trim())).filter(Boolean))];
+  for (const id of tried) {
+    try {
+      return await downloadThreeCplusRecording(id, token, 3);
+    } catch (e) {
+      errors.push(`id ${id}: ${e instanceof Error ? e.message : String(e)}`);
+    }
+  }
+
+  // Diagnóstico: campos de id disponíveis no report ajudam a achar o correto.
+  const reportInfo = report
+    ? `report{id=${report.id ?? "-"}, sid=${report.sid ?? "-"}, telephony_id=${report.telephony_id ?? "-"}, recorded=${report.recorded ?? "-"}, recording=${report.recording ? "presente" : "(vazio)"}}`
+    : "report=null (GET /calls/{id} falhou)";
   throw new Error(
-    `Não foi possível baixar a gravação na 3C Plus. IDs tentados: ${tried.join(", ") || handle}. ${detail}`,
+    `Não foi possível baixar a gravação na 3C Plus. ${reportInfo}. Tentativas: ${errors.join(" | ") || "nenhuma"}`,
   );
+}
+
+// Baixa um arquivo de áudio de uma URL arbitrária (campo `recording` da 3C Plus).
+// Acrescenta o api_token se a URL for de um host da 3C Plus e ainda não o tiver;
+// URLs assinadas (S3/CDN) são buscadas como estão.
+async function downloadAudioFromUrl(
+  rawUrl: string,
+  token: string,
+): Promise<{ bytes: Uint8Array; contentType: string }> {
+  let url = rawUrl;
+  const is3c = /(3c\.plus|fluxoti\.com)/i.test(url);
+  if (is3c && !/[?&]api_token=/.test(url)) {
+    url = withApiToken(url, token);
+  }
+  const res = await fetch(url, { headers: { Accept: "*/*" } });
+  if (!res.ok) {
+    const body = (await res.text().catch(() => "")).slice(0, 200);
+    throw new Error(`${res.status} em ${rawUrl.slice(0, 80)}: ${body}`);
+  }
+  const contentType = res.headers.get("content-type") || "application/octet-stream";
+  const bytes = new Uint8Array(await res.arrayBuffer());
+  if (bytes.byteLength === 0) throw new Error("resposta vazia");
+  if (bytes.byteLength > MAX_AUDIO_BYTES) throw new Error("gravação acima do limite de tamanho");
+  return { bytes, contentType };
 }
 
 // Baixa a gravação de uma ligação 3C Plus e devolve o áudio em base64 para o

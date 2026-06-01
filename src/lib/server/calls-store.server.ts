@@ -305,13 +305,14 @@ export async function recordAnalysis(input: {
     transcript,
     ...(input.sourceCallId ? { sourceCallId: input.sourceCallId } : {}),
   };
-  // Dedup por gravação da 3C Plus: se a mesma gravação já foi auditada (mesmo
-  // sourceCallId ou mesmo rótulo "3C Plus · {id}"), substitui em vez de duplicar.
-  // Vale para a re-análise pela aba Áudios e para a ingestão em lote repetida.
-  if (input.sourceCallId) {
+  // Dedup por gravação da 3C Plus: se a mesma gravação já foi auditada, substitui
+  // em vez de duplicar. Casa pelo rótulo "3C Plus · {sid}" (estável entre re-
+  // análises, mesmo quando o sourceCallId só passou a ser gravado depois) ou pelo
+  // sourceCallId. Vale para a re-análise pela aba Áudios e para o lote repetido.
+  if (input.sourceCallId || label.startsWith("3C Plus · ")) {
     const dupIdx = store.findIndex(
       (c) =>
-        c.sourceCallId === input.sourceCallId || c.label === `3C Plus · ${input.sourceCallId}`,
+        c.label === label || (input.sourceCallId != null && c.sourceCallId === input.sourceCallId),
     );
     if (dupIdx >= 0) store.splice(dupIdx, 1);
   }

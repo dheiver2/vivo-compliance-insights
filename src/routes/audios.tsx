@@ -11,6 +11,7 @@ import {
   listThreeCplusCalls,
   analyzeThreeCplusCall,
   getThreeCplusRecording,
+  getThreeCplusCallMeta,
   type ThreeCplusCall,
 } from "@/lib/api/analyze.functions";
 import { getSystemStatus, listCalls, type SystemStatus } from "@/lib/api/calls.functions";
@@ -320,83 +321,18 @@ function AudiosPage() {
             <div className="divide-y rounded-md border">
               {auditedAudios.map((c) => {
                 const handle = recordingHandle(c);
-                const au = audio[handle];
                 return (
-                  <div key={c.id} className="p-3 text-sm">
-                    <div className="flex items-center gap-3">
-                      <div className="min-w-0 flex-1">
-                        <p className="font-medium truncate">
-                          {c.agentName} · {c.topic}
-                        </p>
-                        <p className="text-xs text-muted-foreground truncate">
-                          {c.id} · {new Date(c.createdAt).toLocaleString("pt-BR")}
-                        </p>
-                      </div>
-                      {handle ? (
-                        <button
-                          type="button"
-                          onClick={() => toggleAudio(handle)}
-                          disabled={running || au?.loading}
-                          className="inline-flex flex-shrink-0 items-center gap-1 rounded-md border border-border/60 px-2 py-1 text-xs text-foreground transition-colors hover:bg-muted disabled:opacity-50"
-                        >
-                          {au?.loading ? (
-                            <>
-                              <Loader2 className="h-3.5 w-3.5 animate-spin" /> carregando…
-                            </>
-                          ) : au?.url ? (
-                            <>
-                              <X className="h-3.5 w-3.5" /> Ocultar
-                            </>
-                          ) : (
-                            <>
-                              <Volume2 className="h-3.5 w-3.5" /> Ouvir
-                            </>
-                          )}
-                        </button>
-                      ) : (
-                        <span className="flex-shrink-0 text-xs text-muted-foreground">
-                          sem gravação
-                        </span>
-                      )}
-                      {handle && (
-                        <button
-                          type="button"
-                          onClick={() => analyzeOne(c.id, handle)}
-                          disabled={running || rowAnalyze[c.id]?.status === "processing"}
-                          className="inline-flex flex-shrink-0 items-center gap-1 rounded-md border border-primary/40 bg-primary/5 px-2 py-1 text-xs font-medium text-primary transition-colors hover:bg-primary/10 disabled:opacity-50"
-                        >
-                          {rowAnalyze[c.id]?.status === "processing" ? (
-                            <>
-                              <Loader2 className="h-3.5 w-3.5 animate-spin" /> analisando…
-                            </>
-                          ) : rowAnalyze[c.id]?.status === "done" ? (
-                            <>
-                              <CheckCircle2 className="h-3.5 w-3.5" /> reanalisar
-                            </>
-                          ) : (
-                            <>
-                              <Play className="h-3.5 w-3.5" /> Analisar
-                            </>
-                          )}
-                        </button>
-                      )}
-                      <Link
-                        to="/calls/$callId"
-                        params={{ callId: c.id }}
-                        className="flex flex-shrink-0 items-center gap-0.5 text-xs text-muted-foreground hover:text-foreground"
-                      >
-                        ficha <ChevronRight className="h-3.5 w-3.5" />
-                      </Link>
-                    </div>
-                    {rowAnalyze[c.id]?.status === "error" && (
-                      <p className="mt-2 text-xs text-destructive">{rowAnalyze[c.id]?.message}</p>
-                    )}
-                    {au?.error && <p className="mt-2 text-xs text-destructive">{au.error}</p>}
-                    {au?.url && (
-                      // eslint-disable-next-line jsx-a11y/media-has-caption
-                      <audio src={au.url} controls autoPlay className="mt-2 h-9 w-full" />
-                    )}
-                  </div>
+                  <RawAudioRow
+                    key={c.id}
+                    call={c}
+                    handle={handle}
+                    apiToken={apiToken.trim()}
+                    au={audio[handle]}
+                    onToggleAudio={() => toggleAudio(handle)}
+                    analyzeState={rowAnalyze[c.id]}
+                    onAnalyze={() => analyzeOne(c.id, handle)}
+                    running={running}
+                  />
                 );
               })}
             </div>
@@ -658,4 +594,128 @@ function ItemBadge({ recorded, state }: { recorded: boolean; state?: ItemState }
         </span>
       );
   }
+}
+
+// Linha de um áudio do acervo, exibida "como no 3C Plus": busca os metadados da
+// ligação (atendente, número mascarado, data, campanha, fila) sob demanda e os
+// mostra junto do player e do disparo de análise. O fetch é cacheado pelo
+// react-query (queryKey por gravação) e só roda quando há identificador.
+function RawAudioRow({
+  call,
+  handle,
+  apiToken,
+  au,
+  onToggleAudio,
+  analyzeState,
+  onAnalyze,
+  running,
+}: {
+  call: StoredCall;
+  handle: string;
+  apiToken: string;
+  au?: AudioState;
+  onToggleAudio: () => void;
+  analyzeState?: ItemState;
+  onAnalyze: () => void;
+  running: boolean;
+}) {
+  const metaQ = useQuery<ThreeCplusCall | null>({
+    queryKey: ["3c-meta", handle],
+    queryFn: () => getThreeCplusCallMeta({ data: { callId: handle, apiToken } }),
+    enabled: handle.length > 0,
+    staleTime: 5 * 60 * 1000,
+    retry: false,
+  });
+  const m = metaQ.data;
+  const agent = m?.agent || call.agentName;
+  const dateStr = m?.callDate || call.createdAt;
+
+  // Campos extras no padrão do 3C Plus (omitidos quando ausentes).
+  const facts: string[] = [];
+  if (m?.campaign) facts.push(m.campaign);
+  if (m?.queueName) facts.push(m.queueName);
+  if (call.topic) facts.push(call.topic);
+
+  return (
+    <div className="p-3 text-sm">
+      <div className="flex items-center gap-3">
+        <div className="min-w-0 flex-1">
+          <p className="truncate font-medium">
+            {agent}
+            {m?.number ? ` · ${m.number}` : ""}
+          </p>
+          <p className="truncate text-xs text-muted-foreground">
+            {dateStr ? new Date(dateStr).toLocaleString("pt-BR") : "—"}
+            {facts.length > 0 ? ` · ${facts.join(" · ")}` : ""}
+          </p>
+          <p className="truncate text-[11px] text-muted-foreground/80">
+            {call.id}
+            {m?.sid ? ` · 3C ${m.sid}` : ""}
+            {metaQ.isLoading ? " · carregando dados…" : ""}
+          </p>
+        </div>
+        {handle ? (
+          <button
+            type="button"
+            onClick={onToggleAudio}
+            disabled={running || au?.loading}
+            className="inline-flex flex-shrink-0 items-center gap-1 rounded-md border border-border/60 px-2 py-1 text-xs text-foreground transition-colors hover:bg-muted disabled:opacity-50"
+          >
+            {au?.loading ? (
+              <>
+                <Loader2 className="h-3.5 w-3.5 animate-spin" /> carregando…
+              </>
+            ) : au?.url ? (
+              <>
+                <X className="h-3.5 w-3.5" /> Ocultar
+              </>
+            ) : (
+              <>
+                <Volume2 className="h-3.5 w-3.5" /> Ouvir
+              </>
+            )}
+          </button>
+        ) : (
+          <span className="flex-shrink-0 text-xs text-muted-foreground">sem gravação</span>
+        )}
+        {handle && (
+          <button
+            type="button"
+            onClick={onAnalyze}
+            disabled={running || analyzeState?.status === "processing"}
+            className="inline-flex flex-shrink-0 items-center gap-1 rounded-md border border-primary/40 bg-primary/5 px-2 py-1 text-xs font-medium text-primary transition-colors hover:bg-primary/10 disabled:opacity-50"
+          >
+            {analyzeState?.status === "processing" ? (
+              <>
+                <Loader2 className="h-3.5 w-3.5 animate-spin" /> analisando…
+              </>
+            ) : analyzeState?.status === "done" ? (
+              <>
+                <CheckCircle2 className="h-3.5 w-3.5" /> reanalisar
+              </>
+            ) : (
+              <>
+                <Play className="h-3.5 w-3.5" /> Analisar
+              </>
+            )}
+          </button>
+        )}
+        <Link
+          to="/calls/$callId"
+          params={{ callId: call.id }}
+          className="flex flex-shrink-0 items-center gap-0.5 text-xs text-muted-foreground hover:text-foreground"
+        >
+          ficha <ChevronRight className="h-3.5 w-3.5" />
+        </Link>
+      </div>
+      {analyzeState?.status === "error" && (
+        <p className="mt-2 text-xs text-destructive">{analyzeState.message}</p>
+      )}
+      {au?.error && <p className="mt-2 text-xs text-destructive">{au.error}</p>}
+      {au?.url && (
+        // eslint-disable-next-line jsx-a11y/media-has-caption
+        <audio src={au.url} controls autoPlay className="mt-2 h-9 w-full" />
+      )}
+    </div>
+  );
 }

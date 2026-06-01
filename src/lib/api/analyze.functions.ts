@@ -1130,9 +1130,10 @@ export const analyzeThreeCplusCall = createServerFn({ method: "POST" })
       throw new Error("Transcrição de áudio requer a Mangaba AI ativa no servidor (HF_TOKEN).");
     }
 
-    // Baixa o áudio pelo endpoint de gravação (host de THREECPLUS_BASE; trata
-    // rate limit e ligações sem áudio internamente).
-    const { bytes, contentType } = await downloadThreeCplusRecording(data.callId, token);
+    // Baixa o áudio pelo endpoint de gravação. Usa o `id` canônico do report
+    // (o callId informado pode ser o SID, que não serve para /recording → 404).
+    const downloadId = report?.id != null ? String(report.id) : data.callId;
+    const { bytes, contentType } = await downloadThreeCplusRecording(downloadId, token);
     const asrModel = process.env.HF_ASR_MODEL || DEFAULT_ASR_MODEL;
     const rawTranscript = await transcribeAudio(bytes, contentType, hfToken, asrModel);
 
@@ -1157,7 +1158,7 @@ export const analyzeThreeCplusCall = createServerFn({ method: "POST" })
       transcript: auditSummary,
       topicSource: transcript,
       agentName,
-      sourceCallId: data.callId,
+      sourceCallId: downloadId,
     });
 
     return {
@@ -1174,6 +1175,20 @@ const RecordingInput = z.object({
   apiToken: z.string().optional().default(""),
 });
 
+// Resolve o id canônico da ligação para baixar a gravação. Registros antigos
+// guardaram o SID no rótulo, que NÃO serve para o endpoint /recording (responde
+// 404); consultando /calls/{handle} obtemos o `id` correto do report. Se a
+// consulta falhar, mantém o handle (comportamento anterior).
+async function resolveRecordingId(handle: string, token: string): Promise<string> {
+  try {
+    const r = await threeCplusGet<ThreeCplusReport>(`/calls/${encodeURIComponent(handle)}`, token);
+    if (r && r.id != null) return String(r.id);
+  } catch {
+    /* segue com o handle */
+  }
+  return handle;
+}
+
 // Baixa a gravação de uma ligação 3C Plus e devolve o áudio em base64 para o
 // player da aba Áudios. ATENÇÃO: expõe o áudio cru (voz do cliente = PII), então
 // exige sessão autenticada como defesa-em-profundidade. O download é feito no
@@ -1185,9 +1200,31 @@ export const getThreeCplusRecording = createServerFn({ method: "POST" })
       throw new Error("Sessão necessária para ouvir a gravação.");
     }
     const token = resolveThreeCplusToken(data.apiToken);
-    const { bytes, contentType } = await downloadThreeCplusRecording(data.callId, token);
+    const downloadId = await resolveRecordingId(data.callId, token);
+    const { bytes, contentType } = await downloadThreeCplusRecording(downloadId, token);
     const base64 = Buffer.from(bytes).toString("base64");
     return { base64, contentType: contentType || "audio/mpeg" };
+  });
+
+// Metadados de uma ligação na 3C Plus (atendente, número mascarado, data,
+// campanha, fila) — usados para exibir os áudios do acervo "como no 3C Plus".
+// Só leitura; telefone já vem mascarado por toThreeCplusCall.
+export const getThreeCplusCallMeta = createServerFn({ method: "POST" })
+  .inputValidator(RecordingInput)
+  .handler(async ({ data }): Promise<ThreeCplusCall | null> => {
+    if (isGateEnabled() && !isAuthenticated()) {
+      throw new Error("Sessão necessária para consultar a ligação.");
+    }
+    const token = resolveThreeCplusToken(data.apiToken);
+    try {
+      const report = await threeCplusGet<ThreeCplusReport>(
+        `/calls/${encodeURIComponent(data.callId)}`,
+        token,
+      );
+      return toThreeCplusCall(report);
+    } catch {
+      return null;
+    }
   });
 
 // ---------------------------------------------------------------------------

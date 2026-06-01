@@ -139,12 +139,17 @@ function Landing() {
               Dashboard
             </Link>
           </nav>
-          <Link
-            to="/audios"
-            className="inline-flex items-center gap-1.5 rounded-md bg-[image:var(--gradient-primary)] px-4 py-2 text-sm font-medium text-primary-foreground shadow-[var(--shadow-glow)] transition-transform hover:scale-[1.03]"
-          >
-            Auditar áudios <ArrowRight className="h-4 w-4" />
-          </Link>
+          <div className="flex items-center gap-4">
+            <span className="hidden items-center gap-1.5 text-[10px] uppercase tracking-wider text-muted-foreground lg:flex">
+              Consultoria <AvanttiLogo className="text-sm text-foreground" />
+            </span>
+            <Link
+              to="/audios"
+              className="inline-flex items-center gap-1.5 rounded-md bg-[image:var(--gradient-primary)] px-4 py-2 text-sm font-medium text-primary-foreground shadow-[var(--shadow-glow)] transition-transform hover:scale-[1.03]"
+            >
+              Auditar áudios <ArrowRight className="h-4 w-4" />
+            </Link>
+          </div>
         </div>
       </header>
 
@@ -190,8 +195,14 @@ function Landing() {
             </Link>
           </div>
 
-          <div className="mt-10 flex items-center justify-center gap-2 text-xs uppercase tracking-widest text-white/50">
-            uma solução <VivoLogo className="h-4 text-white/80" />
+          <div className="mt-10 flex flex-wrap items-center justify-center gap-x-4 gap-y-2 text-xs uppercase tracking-widest text-white/50">
+            <span className="flex items-center gap-2">
+              uma solução <VivoLogo className="h-4 text-white/80" />
+            </span>
+            <span className="text-white/25">·</span>
+            <span className="flex items-center gap-2">
+              consultoria <AvanttiLogo className="text-base text-white/85" />
+            </span>
           </div>
 
           <div className="mx-auto mt-16 grid max-w-3xl grid-cols-2 gap-px overflow-hidden rounded-xl border border-white/10 bg-white/10 sm:grid-cols-4">

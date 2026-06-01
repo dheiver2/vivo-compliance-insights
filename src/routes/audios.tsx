@@ -7,13 +7,15 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Progress } from "@/components/ui/progress";
+import { StatusBadge } from "@/components/StatusBadge";
 import {
   listThreeCplusCalls,
   analyzeThreeCplusCall,
   getThreeCplusRecording,
   type ThreeCplusCall,
 } from "@/lib/api/analyze.functions";
-import { getSystemStatus, type SystemStatus } from "@/lib/api/calls.functions";
+import { getSystemStatus, listCalls, type SystemStatus } from "@/lib/api/calls.functions";
+import type { StoredCall } from "@/lib/server/calls-store.server";
 import {
   AudioLines,
   KeyRound,
@@ -28,6 +30,8 @@ import {
   ShieldCheck,
   ExternalLink,
   Volume2,
+  FileCheck,
+  ChevronRight,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -70,6 +74,11 @@ function base64ToBlob(b64: string, type: string): Blob {
 // Identificador estável de uma gravação (id da 3C Plus, com fallback no SID).
 function callKey(c: ThreeCplusCall): string {
   return c.id || c.sid;
+}
+
+// Cor do score por faixa (verde ≥75, amarelo ≥50, vermelho abaixo).
+function scoreCls(s: number): string {
+  return s >= 75 ? "text-success" : s >= 50 ? "text-warning-foreground" : "text-destructive";
 }
 
 function AudiosPage() {
@@ -128,6 +137,18 @@ function AudiosPage() {
     queryFn: () => getSystemStatus(),
   });
   const voiceReady = status?.hfConfigured ?? true;
+
+  // Áudios já auditados (do store) — origem "audio". Carrega automaticamente,
+  // sem precisar de token. Mesma queryKey de Ligações (cache compartilhado).
+  const auditedQ = useQuery<StoredCall[]>({
+    queryKey: ["calls"],
+    queryFn: () => listCalls(),
+    refetchOnWindowFocus: true,
+  });
+  const auditedAudios = useMemo(
+    () => (auditedQ.data ?? []).filter((c) => c.origin === "audio"),
+    [auditedQ.data],
+  );
 
   const listMut = useMutation({
     mutationFn: () =>
@@ -243,6 +264,66 @@ function AudiosPage() {
           </CardContent>
         </Card>
       )}
+
+      {/* Áudios já auditados (do store) — carrega automaticamente, sem token */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-base">
+            <FileCheck className="h-4 w-4 text-primary" /> Áudios auditados
+            {auditedAudios.length > 0 && (
+              <span className="text-sm font-normal text-muted-foreground">
+                ({auditedAudios.length})
+              </span>
+            )}
+          </CardTitle>
+          <CardDescription>
+            Gravações de áudio já auditadas pela Mangaba AI. Clique para abrir a ficha completa.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="pt-0">
+          {auditedQ.isLoading ? (
+            <div className="flex items-center justify-center py-10 text-muted-foreground">
+              <Loader2 className="h-5 w-5 animate-spin" />
+            </div>
+          ) : auditedAudios.length === 0 ? (
+            <p className="py-8 text-center text-sm text-muted-foreground">
+              Nenhum áudio auditado ainda. Selecione gravações abaixo para auditar.
+            </p>
+          ) : (
+            <div className="divide-y rounded-md border">
+              {auditedAudios.map((c) => (
+                <Link
+                  key={c.id}
+                  to="/calls/$callId"
+                  params={{ callId: c.id }}
+                  className="flex items-center gap-3 p-3 text-sm transition-colors hover:bg-muted/40"
+                >
+                  <div className="min-w-0 flex-1">
+                    <p className="font-medium truncate">
+                      {c.agentName} · {c.topic}
+                    </p>
+                    <p className="text-xs text-muted-foreground truncate">
+                      {c.id} · {new Date(c.createdAt).toLocaleString("pt-BR")}
+                    </p>
+                  </div>
+                  <div className="flex flex-shrink-0 items-center gap-4">
+                    <div className="text-center">
+                      <div className="text-[10px] uppercase text-muted-foreground">Compliance</div>
+                      <div
+                        className={`text-base font-display font-bold ${scoreCls(c.scoreCompliance)}`}
+                      >
+                        {c.scoreCompliance}%
+                      </div>
+                    </div>
+                    <StatusBadge status={c.status} />
+                    <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                  </div>
+                </Link>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
       {/* Filtro de listagem */}
       <Card>

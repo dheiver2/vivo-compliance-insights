@@ -73,3 +73,20 @@ export function startSession(): void {
 export function endSession(): void {
   deleteCookie(SESSION_COOKIE, { path: "/" });
 }
+
+// Lança se a sessão for exigida e não houver. Use no TOPO das server fns
+// sensíveis: o gate protege as PÁGINAS, mas as server fns são endpoints
+// próprios — sem isto, poderiam ser chamadas sem login.
+export function requireAuth(): void {
+  if (isGateEnabled() && !isAuthenticated()) {
+    throw new Error("Não autorizado. Faça login para continuar.");
+  }
+}
+
+// Chave única e IRREVERSÍVEL de um identificador (ex.: CPF) — HMAC-SHA256 com
+// segredo do servidor. Mesmo CPF → mesma chave; não dá para voltar ao CPF.
+// Usada para assinar/contestar auditorias sem reter o CPF em claro (LGPD).
+export function identityKeyHash(value: string): string {
+  const secret = process.env.SIGN_SECRET || getAppPassword() || "voiceaudit:identity:v1";
+  return createHmac("sha256", secret).update(`cpf:${value}`).digest("hex");
+}

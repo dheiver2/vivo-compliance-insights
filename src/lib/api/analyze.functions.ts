@@ -11,7 +11,7 @@ import {
 import { redactText } from "../pii";
 import { listCalls, recordAnalysis } from "../server/calls-store.server";
 import { getActiveCriteria, type MonitoringCriterion } from "../server/monitoring-form.server";
-import { isAuthenticated, isGateEnabled } from "../server/auth.server";
+import { isAuthenticated, isGateEnabled, requireAuth } from "../server/auth.server";
 import { getCachedAnalysis, setCachedAnalysis } from "../server/ai-cache.server";
 
 // HuggingFace Inference Providers expose an OpenAI-compatible chat endpoint.
@@ -639,6 +639,7 @@ export const analyzeCall = createServerFn({ method: "POST" })
     }),
   )
   .handler(async ({ data }): Promise<StoredAnalysis> => {
+    requireAuth();
     // LGPD: mascara PII (CPF, CNPJ, cartão, telefone, e-mail) ANTES de enviar à
     // IA externa, persistir e exibir. O mesmo texto redigido flui por tudo.
     const transcript = redactText(data.transcript);
@@ -757,6 +758,7 @@ function filenameFromUrl(url: string): string {
 export const analyzeCallFromUrl = createServerFn({ method: "POST" })
   .inputValidator(IngestUrlInput)
   .handler(async ({ data }): Promise<IngestAnalysis> => {
+    requireAuth();
     const providerLabel = PROVIDER_LABELS[data.provider] ?? "Provedor externo";
     const fileLabel = filenameFromUrl(data.recordingUrl);
     // Rótulo legível da ligação: provedor + id externo (ou nome do arquivo).
@@ -817,6 +819,7 @@ export const analyzeCallFromUrl = createServerFn({ method: "POST" })
 export const analyzeAudio = createServerFn({ method: "POST" })
   .inputValidator(AnalyzeAudioInput)
   .handler(async ({ data }): Promise<AudioAnalysis> => {
+    requireAuth();
     const token = process.env.HF_TOKEN;
     if (!token) {
       throw new Error("Transcrição de áudio requer a Mangaba AI ativa no servidor.");
@@ -1115,6 +1118,7 @@ const ListThreeCplusInput = z.object({
 export const listThreeCplusCalls = createServerFn({ method: "GET" })
   .inputValidator(ListThreeCplusInput)
   .handler(async ({ data }): Promise<ThreeCplusCall[]> => {
+    requireAuth();
     const token = resolveThreeCplusToken(data.apiToken);
     const params = new URLSearchParams({
       start_date: data.startDate,
@@ -1139,6 +1143,7 @@ const AnalyzeThreeCplusInput = z.object({
 export const analyzeThreeCplusCall = createServerFn({ method: "POST" })
   .inputValidator(AnalyzeThreeCplusInput)
   .handler(async ({ data }): Promise<IngestAnalysis> => {
+    requireAuth();
     const token = resolveThreeCplusToken(data.apiToken);
 
     // Relatório da ligação (best-effort): enriquece atendente/sid e confirma
@@ -1440,6 +1445,7 @@ export interface ThreeCplusBatchResult {
 export const ingestThreeCplusBatch = createServerFn({ method: "POST" })
   .inputValidator(IngestThreeCplusBatchInput)
   .handler(async ({ data }): Promise<ThreeCplusBatchResult> => {
+    requireAuth();
     const token = resolveThreeCplusToken(data.apiToken);
     const hfToken = process.env.HF_TOKEN;
     if (!hfToken) {

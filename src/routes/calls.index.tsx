@@ -1,12 +1,47 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
+import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { StatusBadge } from "@/components/StatusBadge";
 import { listCalls } from "@/lib/api/calls.functions";
 import type { StoredCall } from "@/lib/server/calls-store.server";
 import { RefreshButton } from "@/components/RefreshButton";
 import { mangabaSourceShort } from "@/lib/mangaba";
-import { AudioLines, FileText, Loader2, Phone, Search, Sparkles, X } from "lucide-react";
+import {
+  AudioLines,
+  FileText,
+  Loader2,
+  Phone,
+  Search,
+  Sparkles,
+  X,
+  PenLine,
+  MessageSquareWarning,
+} from "lucide-react";
+
+type ReviewFilter = "todas" | "assinadas" | "nao_assinadas" | "contestadas" | "aberta";
+const REVIEW_FILTERS: { value: ReviewFilter; label: string }[] = [
+  { value: "todas", label: "Todas" },
+  { value: "assinadas", label: "Assinadas" },
+  { value: "nao_assinadas", label: "Não assinadas" },
+  { value: "contestadas", label: "Contestadas" },
+  { value: "aberta", label: "Contestação aberta" },
+];
+
+function passesReview(c: StoredCall, f: ReviewFilter): boolean {
+  switch (f) {
+    case "assinadas":
+      return Boolean(c.signature);
+    case "nao_assinadas":
+      return !c.signature;
+    case "contestadas":
+      return Boolean(c.contestation);
+    case "aberta":
+      return c.contestation?.status === "aberta";
+    default:
+      return true;
+  }
+}
 
 export const Route = createFileRoute("/calls/")({
   validateSearch: (search: Record<string, unknown>): { q?: string } => ({
@@ -45,7 +80,10 @@ function CallsPage() {
     refetchOnWindowFocus: true,
   });
 
-  const filtered = q && data ? data.filter((c) => matches(c, q)) : data;
+  const [review, setReview] = useState<ReviewFilter>("todas");
+  const filtered = data
+    ? data.filter((c) => (!q || matches(c, q)) && passesReview(c, review))
+    : data;
 
   return (
     <div className="space-y-6 max-w-[1600px] mx-auto">
@@ -58,6 +96,26 @@ function CallsPage() {
         </div>
         <RefreshButton onClick={() => refetch()} busy={isFetching} updatedAt={dataUpdatedAt} />
       </header>
+
+      {data && data.length > 0 && (
+        <div className="flex flex-wrap items-center gap-2">
+          {REVIEW_FILTERS.map((f) => (
+            <button
+              key={f.value}
+              type="button"
+              onClick={() => setReview(f.value)}
+              aria-pressed={review === f.value}
+              className={`rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
+                review === f.value
+                  ? "border-primary bg-primary text-primary-foreground"
+                  : "border-border text-muted-foreground hover:bg-muted"
+              }`}
+            >
+              {f.label}
+            </button>
+          ))}
+        </div>
+      )}
 
       {q && (
         <div className="flex items-center gap-2 text-sm">
@@ -145,6 +203,27 @@ function CallsPage() {
                       <p className="text-xs text-muted-foreground mt-0.5">
                         {c.agentName} · {c.topic} · {new Date(c.createdAt).toLocaleString("pt-BR")}
                       </p>
+                      <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+                        {c.signature && (
+                          <span className="inline-flex items-center gap-1 rounded-full border border-success/30 bg-success/10 px-1.5 py-0.5 text-[10px] font-medium text-success">
+                            <PenLine className="h-3 w-3" /> assinada
+                          </span>
+                        )}
+                        {c.contestation && (
+                          <span
+                            className={`inline-flex items-center gap-1 rounded-full border px-1.5 py-0.5 text-[10px] font-medium ${
+                              c.contestation.status === "aberta"
+                                ? "border-warning/40 bg-warning/15 text-warning-foreground"
+                                : c.contestation.status === "aceita"
+                                  ? "border-success/30 bg-success/10 text-success"
+                                  : "border-destructive/30 bg-destructive/10 text-destructive"
+                            }`}
+                          >
+                            <MessageSquareWarning className="h-3 w-3" /> contestação{" "}
+                            {c.contestation.status}
+                          </span>
+                        )}
+                      </div>
                     </div>
                     <StatusBadge status={c.status} />
                   </div>

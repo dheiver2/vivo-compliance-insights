@@ -1,6 +1,7 @@
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { StatusBadge } from "@/components/StatusBadge";
+import { ReviewPanel } from "@/components/ReviewPanel";
 import type { StoredCall } from "@/lib/server/calls-store.server";
 import { Link } from "@tanstack/react-router";
 import { AudioLines, FileText, User } from "lucide-react";
@@ -142,6 +143,8 @@ export function CallFicha({ call }: { call: StoredCall }) {
           </pre>
         </CardContent>
       </Card>
+
+      <ReviewPanel call={call} />
     </>
   );
 }

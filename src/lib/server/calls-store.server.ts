@@ -29,6 +29,30 @@ import { getActiveChecklistLabels } from "./monitoring-form.server";
 
 export type CallOrigin = "audio" | "texto";
 
+// Assinatura (aceite) do atendente na hora da auditoria. Chave única =
+// HMAC(CPF) (irreversível); guardamos só o hash + máscara, nunca o CPF em claro.
+export interface AuditSignature {
+  agentKeyHash: string; // chave única do atendente (HMAC do CPF)
+  agentKeyMasked: string; // •••.•••.•••-12 (exibição)
+  agentName: string;
+  signedAt: string; // ISO
+  by: "atendente" | "supervisor";
+}
+
+// Contestação da auditoria (atendente ou supervisor) e sua resolução.
+export type ContestationStatus = "aberta" | "aceita" | "rejeitada";
+export interface AuditContestation {
+  status: ContestationStatus;
+  openedBy: "atendente" | "supervisor";
+  openedByMasked?: string; // CPF mascarado de quem abriu (se atendente)
+  reason: string;
+  criterion?: string; // critério específico contestado, ou geral
+  openedAt: string;
+  resolvedAt?: string;
+  resolvedBy?: string;
+  resolution?: string; // parecer de quem resolveu
+}
+
 export const UNASSIGNED_AGENT = "Não atribuído";
 
 // Normaliza o nome do atendente informado (trim + colapsa espaços). Vazio vira
@@ -60,6 +84,9 @@ export interface StoredCall {
   // 3C Plus). Permite reproduzir o áudio bruto na aba Áudios. Ausente em
   // registros antigos e em áudios que não vieram da 3C Plus.
   sourceCallId?: string;
+  // Assinatura (aceite) do atendente e contestação da auditoria, quando houver.
+  signature?: AuditSignature;
+  contestation?: AuditContestation;
 }
 
 const store: StoredCall[] = [];
@@ -337,6 +364,58 @@ export async function getCallById(id: string): Promise<StoredCall | undefined> {
   return store.find((c) => c.id === id);
 }
 
+// ----------------------------------------------------------------------------
+// Assinatura e contestação da auditoria (trilha de revisão por ligação).
+// ----------------------------------------------------------------------------
+
+// Registra a assinatura (aceite) do atendente. Imutável: não sobrescreve uma
+// assinatura existente.
+export async function setSignature(
+  id: string,
+  signature: AuditSignature,
+): Promise<StoredCall | null> {
+  await ensureLoaded();
+  const call = store.find((c) => c.id === id);
+  if (!call) return null;
+  if (call.signature) return call; // já assinada — mantém o registro original
+  call.signature = signature;
+  await persist();
+  return call;
+}
+
+// Abre uma contestação (status "aberta"). Se já houver uma ABERTA, mantém.
+export async function setContestation(
+  id: string,
+  contestation: AuditContestation,
+): Promise<StoredCall | null> {
+  await ensureLoaded();
+  const call = store.find((c) => c.id === id);
+  if (!call) return null;
+  if (call.contestation && call.contestation.status === "aberta") return call;
+  call.contestation = contestation;
+  await persist();
+  return call;
+}
+
+// Resolve a contestação aberta (aceita/rejeitada) com parecer.
+export async function resolveContestation(
+  id: string,
+  resolution: { status: "aceita" | "rejeitada"; resolvedBy: string; parecer: string },
+): Promise<StoredCall | null> {
+  await ensureLoaded();
+  const call = store.find((c) => c.id === id);
+  if (!call || !call.contestation) return null;
+  call.contestation = {
+    ...call.contestation,
+    status: resolution.status,
+    resolvedAt: new Date().toISOString(),
+    resolvedBy: resolution.resolvedBy,
+    resolution: resolution.parecer,
+  };
+  await persist();
+  return call;
+}
+
 // Remove todas as análises (usado pela tela de Configurações).
 export async function clearCalls(): Promise<void> {
   await ensureLoaded();
@@ -372,6 +451,12 @@ export interface DashboardData {
   complianceItems: { label: string; score: number }[];
   modelUsage: { name: string; role: string; calls: number; status: "active" | "idle" }[];
   recentCalls: StoredCall[];
+  // Revisão: aceite (assinatura) do atendente e contestações.
+  review: {
+    signedRate: number; // % de auditorias assinadas pelo atendente
+    openContestations: number; // contestações ainda abertas
+    contestedRate: number; // % de auditorias contestadas (qualquer status)
+  };
 }
 
 const avg = (nums: number[]) =>
@@ -577,6 +662,11 @@ export async function getDashboardData(
     complianceItems,
     modelUsage,
     recentCalls: all.slice(0, 8),
+    review: {
+      signedRate: rate(all, (c) => Boolean(c.signature)),
+      openContestations: all.filter((c) => c.contestation?.status === "aberta").length,
+      contestedRate: rate(all, (c) => Boolean(c.contestation)),
+    },
   };
 }
 

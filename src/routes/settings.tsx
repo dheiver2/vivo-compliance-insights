@@ -37,7 +37,6 @@ import {
   PhoneCall,
   KeyRound,
   Download,
-  Sparkles,
   Bot,
   ChevronRight,
 } from "lucide-react";
@@ -293,22 +292,9 @@ function SettingsPage() {
           <Card>
             <CardHeader>
               <CardTitle>Ferramentas</CardTitle>
-              <CardDescription>Análise avulsa e detalhes dos modelos Mangaba</CardDescription>
+              <CardDescription>Detalhes dos modelos Mangaba</CardDescription>
             </CardHeader>
-            <CardContent className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-0">
-              <Link
-                to="/analyze"
-                className="flex items-center gap-3 rounded-lg border border-border/60 p-3 transition-colors hover:border-primary/40 hover:bg-muted/40"
-              >
-                <Sparkles className="h-5 w-5 text-primary flex-shrink-0" />
-                <span className="min-w-0 flex-1">
-                  <span className="block text-sm font-medium">Análise IA</span>
-                  <span className="block text-xs text-muted-foreground">
-                    Auditar um áudio ou transcrição avulsa
-                  </span>
-                </span>
-                <ChevronRight className="h-4 w-4 text-muted-foreground flex-shrink-0" />
-              </Link>
+            <CardContent className="grid grid-cols-1 gap-3 pt-0">
               <Link
                 to="/agents"
                 className="flex items-center gap-3 rounded-lg border border-border/60 p-3 transition-colors hover:border-primary/40 hover:bg-muted/40"

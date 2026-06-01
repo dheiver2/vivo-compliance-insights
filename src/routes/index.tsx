@@ -139,10 +139,10 @@ function Landing() {
             </Link>
           </nav>
           <Link
-            to="/analyze"
+            to="/audios"
             className="inline-flex items-center gap-1.5 rounded-md bg-[image:var(--gradient-primary)] px-4 py-2 text-sm font-medium text-primary-foreground shadow-[var(--shadow-glow)] transition-transform hover:scale-[1.03]"
           >
-            Testar IA <ArrowRight className="h-4 w-4" />
+            Auditar áudios <ArrowRight className="h-4 w-4" />
           </Link>
         </div>
       </header>
@@ -176,10 +176,10 @@ function Landing() {
           </p>
           <div className="mt-9 flex flex-wrap items-center justify-center gap-3">
             <Link
-              to="/analyze"
+              to="/audios"
               className="inline-flex items-center gap-2 rounded-md bg-white px-6 py-3 text-sm font-semibold text-primary shadow-lg transition-transform hover:scale-[1.03]"
             >
-              <Sparkles className="h-4 w-4" /> Analisar uma ligação
+              <Sparkles className="h-4 w-4" /> Auditar áudios
             </Link>
             <Link
               to="/dashboard"
@@ -290,7 +290,7 @@ function Landing() {
               ))}
             </ul>
             <Link
-              to="/analyze"
+              to="/audios"
               className="mt-8 inline-flex items-center gap-2 rounded-md bg-[image:var(--gradient-primary)] px-6 py-3 text-sm font-semibold text-primary-foreground shadow-[var(--shadow-glow)] transition-transform hover:scale-[1.03]"
             >
               <Sparkles className="h-4 w-4" /> Experimentar agora
@@ -358,14 +358,14 @@ function Landing() {
             Pronto para auditar com inteligência?
           </h2>
           <p className="relative mx-auto mt-3 max-w-xl text-primary-foreground/80">
-            Comece agora analisando uma ligação ou explore o painel de monitoria completo.
+            Comece agora auditando os áudios da 3C Plus ou explore o painel de monitoria completo.
           </p>
           <div className="relative mt-8 flex flex-wrap items-center justify-center gap-3">
             <Link
-              to="/analyze"
+              to="/audios"
               className="inline-flex items-center gap-2 rounded-md bg-white px-6 py-3 text-sm font-semibold text-primary shadow-lg transition-transform hover:scale-[1.03]"
             >
-              <Sparkles className="h-4 w-4" /> Analisar ligação
+              <Sparkles className="h-4 w-4" /> Auditar áudios
             </Link>
             <Link
               to="/dashboard"

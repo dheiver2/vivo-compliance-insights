@@ -96,8 +96,8 @@ function CallsPage() {
             >
               <Phone className="h-4 w-4" /> Importar ligações da 3C Plus
             </Link>
-            <Link to="/analyze" className="mt-3 text-xs text-muted-foreground hover:text-foreground">
-              ou analisar um áudio/transcrição avulsa
+            <Link to="/audios" className="mt-3 text-xs text-muted-foreground hover:text-foreground">
+              ou selecionar áudios da 3C Plus para auditar
             </Link>
           </CardContent>
         </Card>

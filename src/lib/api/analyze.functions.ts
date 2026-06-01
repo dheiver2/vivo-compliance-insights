@@ -11,6 +11,7 @@ import {
 import { redactText } from "../pii";
 import { listCalls, recordAnalysis } from "../server/calls-store.server";
 import { getActiveCriteria, type MonitoringCriterion } from "../server/monitoring-form.server";
+import { isAuthenticated, isGateEnabled } from "../server/auth.server";
 
 // HuggingFace Inference Providers expose an OpenAI-compatible chat endpoint.
 const HF_ROUTER_URL = "https://router.huggingface.co/v1/chat/completions";
@@ -1165,6 +1166,27 @@ export const analyzeThreeCplusCall = createServerFn({ method: "POST" })
       id: stored.id,
       protocol: stored.protocol,
     };
+  });
+
+const RecordingInput = z.object({
+  callId: z.string().min(1, "Informe o ID (ou SID) da ligação na 3C Plus."),
+  apiToken: z.string().optional().default(""),
+});
+
+// Baixa a gravação de uma ligação 3C Plus e devolve o áudio em base64 para o
+// player da aba Áudios. ATENÇÃO: expõe o áudio cru (voz do cliente = PII), então
+// exige sessão autenticada como defesa-em-profundidade. O download é feito no
+// servidor (token nunca vai ao cliente) e o áudio é tocado on-demand.
+export const getThreeCplusRecording = createServerFn({ method: "POST" })
+  .inputValidator(RecordingInput)
+  .handler(async ({ data }): Promise<{ base64: string; contentType: string }> => {
+    if (isGateEnabled() && !isAuthenticated()) {
+      throw new Error("Sessão necessária para ouvir a gravação.");
+    }
+    const token = resolveThreeCplusToken(data.apiToken);
+    const { bytes, contentType } = await downloadThreeCplusRecording(data.callId, token);
+    const base64 = Buffer.from(bytes).toString("base64");
+    return { base64, contentType: contentType || "audio/mpeg" };
   });
 
 // ---------------------------------------------------------------------------

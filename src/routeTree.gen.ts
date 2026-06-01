@@ -16,7 +16,7 @@ import { Route as MonitoringRouteImport } from './routes/monitoring'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as DashboardRouteImport } from './routes/dashboard'
 import { Route as CoachingRouteImport } from './routes/coaching'
-import { Route as AnalyzeRouteImport } from './routes/analyze'
+import { Route as AudiosRouteImport } from './routes/audios'
 import { Route as AgentsRouteImport } from './routes/agents'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as TeamIndexRouteImport } from './routes/team.index'
@@ -59,9 +59,9 @@ const CoachingRoute = CoachingRouteImport.update({
   path: '/coaching',
   getParentRoute: () => rootRouteImport,
 } as any)
-const AnalyzeRoute = AnalyzeRouteImport.update({
-  id: '/analyze',
-  path: '/analyze',
+const AudiosRoute = AudiosRouteImport.update({
+  id: '/audios',
+  path: '/audios',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AgentsRoute = AgentsRouteImport.update({
@@ -98,7 +98,7 @@ const CallsCallIdRoute = CallsCallIdRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/agents': typeof AgentsRoute
-  '/analyze': typeof AnalyzeRoute
+  '/audios': typeof AudiosRoute
   '/coaching': typeof CoachingRoute
   '/dashboard': typeof DashboardRoute
   '/login': typeof LoginRoute
@@ -114,7 +114,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/agents': typeof AgentsRoute
-  '/analyze': typeof AnalyzeRoute
+  '/audios': typeof AudiosRoute
   '/coaching': typeof CoachingRoute
   '/dashboard': typeof DashboardRoute
   '/login': typeof LoginRoute
@@ -131,7 +131,7 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/agents': typeof AgentsRoute
-  '/analyze': typeof AnalyzeRoute
+  '/audios': typeof AudiosRoute
   '/coaching': typeof CoachingRoute
   '/dashboard': typeof DashboardRoute
   '/login': typeof LoginRoute
@@ -149,7 +149,7 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/agents'
-    | '/analyze'
+    | '/audios'
     | '/coaching'
     | '/dashboard'
     | '/login'
@@ -165,7 +165,7 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/agents'
-    | '/analyze'
+    | '/audios'
     | '/coaching'
     | '/dashboard'
     | '/login'
@@ -181,7 +181,7 @@ export interface FileRouteTypes {
     | '__root__'
     | '/'
     | '/agents'
-    | '/analyze'
+    | '/audios'
     | '/coaching'
     | '/dashboard'
     | '/login'
@@ -198,7 +198,7 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AgentsRoute: typeof AgentsRoute
-  AnalyzeRoute: typeof AnalyzeRoute
+  AudiosRoute: typeof AudiosRoute
   CoachingRoute: typeof CoachingRoute
   DashboardRoute: typeof DashboardRoute
   LoginRoute: typeof LoginRoute
@@ -263,11 +263,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof CoachingRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/analyze': {
-      id: '/analyze'
-      path: '/analyze'
-      fullPath: '/analyze'
-      preLoaderRoute: typeof AnalyzeRouteImport
+    '/audios': {
+      id: '/audios'
+      path: '/audios'
+      fullPath: '/audios'
+      preLoaderRoute: typeof AudiosRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/agents': {
@@ -318,7 +318,7 @@ declare module '@tanstack/react-router' {
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AgentsRoute: AgentsRoute,
-  AnalyzeRoute: AnalyzeRoute,
+  AudiosRoute: AudiosRoute,
   CoachingRoute: CoachingRoute,
   DashboardRoute: DashboardRoute,
   LoginRoute: LoginRoute,

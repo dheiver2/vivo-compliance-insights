@@ -25,7 +25,6 @@ import {
   type ComplianceCheck,
   type Sentiment,
 } from "../compliance";
-import { buildSeedCalls } from "./seed-calls.server";
 import { getActiveChecklistLabels } from "./monitoring-form.server";
 
 export type CallOrigin = "audio" | "texto";
@@ -178,21 +177,20 @@ let lastLoadAt = 0;
 // longo o bastante para não pesar dentro de um lote de gravações sequenciais.
 const STORE_FRESH_MS = 1500;
 
-// Semeia o store com as 10 ligações de demonstração e persiste (best-effort).
-function seedStore(): void {
-  const { calls, nextSeq } = buildSeedCalls();
+// Esvazia o store em memória. A plataforma NÃO usa dados de demonstração: o
+// acervo só é preenchido por ingestões REAIS da 3C Plus.
+function emptyStore(): void {
   store.length = 0;
-  store.push(...calls);
-  seq = nextSeq;
+  seq = 1;
 }
 
 // Sincroniza o store em memória com o conteúdo do backend durável.
 async function loadFromBackend(api: StorageBackend): Promise<void> {
   const raw = await api.read();
-  // Backend verdadeiramente vazio (antes do primeiro seed): semeia e persiste.
-  // Após uma limpeza explícita o blob existe (calls: []), então NÃO re-semeia.
+  // Backend vazio: inicia VAZIO (sem seed) e persiste o blob inicial. O acervo
+  // só recebe dados de ingestões reais da 3C Plus.
   if (raw === null) {
-    seedStore();
+    emptyStore();
     await persist();
     return;
   }
@@ -220,10 +218,10 @@ function ensureLoaded(): Promise<void> {
   loadPromise = (async () => {
     try {
       const api = await getBackend();
-      // Sem backend durável (ex.: Workers sem KV): semeia UMA vez em memória.
-      // Sem fonte externa para reler, o estado em memória é estável.
+      // Sem backend durável (ex.: Workers sem KV): inicia VAZIO em memória (sem
+      // seed). Sem fonte externa para reler, o estado em memória é estável.
       if (!api) {
-        if (lastLoadAt === 0) seedStore();
+        if (lastLoadAt === 0) emptyStore();
         lastLoadAt = Date.now();
         return;
       }
@@ -337,17 +335,6 @@ export async function clearCalls(): Promise<void> {
   store.length = 0;
   seq = 1;
   await persist();
-}
-
-// Restaura o store para o seed de demonstração (10 casos offline), sobrescrevendo
-// o conteúdo atual. Útil em produção, onde o KV durável já tem dados e o seed
-// automático (só no primeiro acesso) não roda mais. Para dados reais da 3C Plus,
-// use a Ingestão em lote (ingestThreeCplusBatch).
-export async function reseedCalls(): Promise<number> {
-  await ensureLoaded();
-  seedStore();
-  await persist();
-  return store.length;
 }
 
 // ----------------------------------------------------------------------------

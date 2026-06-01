@@ -83,13 +83,17 @@ function callKey(c: ThreeCplusCall): string {
   return c.id || c.sid;
 }
 
-// Identificador para baixar a gravação bruta de um áudio do store: o callId da
-// 3C Plus salvo na ingestão; ou, para registros antigos, o sid do rótulo
-// "3C Plus · {sid}". Vazio quando o áudio não tem origem reproduzível.
+// Identificador para baixar a gravação bruta de um áudio: APENAS o callId real da
+// 3C Plus (sourceCallId), gravado na ingestão. O sid do rótulo "3C Plus · {sid}"
+// NÃO serve para /recording (e os dados de demonstração têm ids fabricados), por
+// isso não é usado como fallback — áudios sem sourceCallId não são reproduzíveis.
 function recordingHandle(c: StoredCall): string {
-  if (c.sourceCallId) return c.sourceCallId;
-  const prefix = "3C Plus · ";
-  return c.label.startsWith(prefix) ? c.label.slice(prefix.length).trim() : "";
+  return c.sourceCallId ?? "";
+}
+
+// Áudio de demonstração (seed): rótulo "3C Plus · …" mas sem id real da 3C Plus.
+function isDemoAudio(c: StoredCall): boolean {
+  return !c.sourceCallId && c.label.startsWith("3C Plus · ");
 }
 
 function AudiosPage() {
@@ -331,7 +335,9 @@ function AudiosPage() {
             )}
           </CardTitle>
           <CardDescription>
-            Gravações de áudio do acervo. Ouça o áudio original; a análise fica na ficha.
+            Gravações de áudio do acervo. Só áudios reais da 3C Plus tocam — itens marcados como
+            “demonstração” (seed) não têm gravação. Importe ligações reais na busca abaixo. A análise
+            fica na ficha.
           </CardDescription>
         </CardHeader>
         <CardContent className="pt-0 space-y-3">
@@ -752,7 +758,16 @@ function RawAudioRow({
             )}
           </button>
         ) : (
-          <span className="flex-shrink-0 text-xs text-muted-foreground">sem gravação</span>
+          <span
+            className="flex-shrink-0 text-xs text-muted-foreground"
+            title={
+              isDemoAudio(call)
+                ? "Áudio de demonstração (seed) — sem gravação real na 3C Plus. Importe ligações reais para ouvir/auditar."
+                : "Sem gravação reproduzível na 3C Plus."
+            }
+          >
+            {isDemoAudio(call) ? "demonstração" : "sem gravação"}
+          </span>
         )}
         {handle && (
           <button

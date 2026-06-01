@@ -16,12 +16,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import {
-  getSystemStatus,
-  clearCalls,
-  reseedCalls,
-  type SystemStatus,
-} from "@/lib/api/calls.functions";
+import { getSystemStatus, clearCalls, type SystemStatus } from "@/lib/api/calls.functions";
 import { ingestThreeCplusBatch } from "@/lib/api/analyze.functions";
 import { mangabaModelName } from "@/lib/mangaba";
 import {
@@ -33,7 +28,6 @@ import {
   Database,
   Trash2,
   Loader2,
-  RotateCcw,
   PhoneCall,
   KeyRound,
   Download,
@@ -235,15 +229,6 @@ function SettingsPage() {
     onError: (e) => toast.error(e instanceof Error ? e.message : "Falha ao limpar dados."),
   });
 
-  const reseed = useMutation({
-    mutationFn: () => reseedCalls(),
-    onSuccess: async (res) => {
-      await qc.invalidateQueries();
-      toast.success(`${res.total} casos de demonstração restaurados.`);
-    },
-    onError: (e) => toast.error(e instanceof Error ? e.message : "Falha ao restaurar casos."),
-  });
-
   return (
     <div className="space-y-6 max-w-[900px] mx-auto">
       <header>
@@ -324,26 +309,6 @@ function SettingsPage() {
                 label="Total de análises"
                 value={String(data.totalCalls)}
               />
-              <div className="flex items-center justify-between gap-4 pt-4 border-b border-border/60 pb-4">
-                <p className="text-sm text-muted-foreground">
-                  Restaura os 10 casos de demonstração (offline). Sobrescreve os dados atuais — use a
-                  Ingestão 3C Plus acima para dados reais.
-                </p>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => reseed.mutate()}
-                  disabled={reseed.isPending}
-                >
-                  {reseed.isPending ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : (
-                    <>
-                      <RotateCcw className="h-4 w-4 mr-2" /> Restaurar demonstração
-                    </>
-                  )}
-                </Button>
-              </div>
               <div className="flex items-center justify-between gap-4 pt-4">
                 <p className="text-sm text-muted-foreground">
                   Remove permanentemente todas as ligações auditadas.

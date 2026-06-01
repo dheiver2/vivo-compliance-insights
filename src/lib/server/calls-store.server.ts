@@ -57,6 +57,10 @@ export interface StoredCall {
   checks: ComplianceCheck[];
   observations: CallObservation[];
   transcript: string;
+  // ID da ligação na 3C Plus usado para BAIXAR a gravação (quando a origem é a
+  // 3C Plus). Permite reproduzir o áudio bruto na aba Áudios. Ausente em
+  // registros antigos e em áudios que não vieram da 3C Plus.
+  sourceCallId?: string;
 }
 
 const store: StoredCall[] = [];
@@ -274,6 +278,8 @@ export async function recordAnalysis(input: {
   // bruta de forma transitória; NÃO é persistido em lugar nenhum.
   topicSource?: string;
   agentName?: string;
+  // ID da 3C Plus usado para baixar a gravação (habilita o player de áudio bruto).
+  sourceCallId?: string;
 }): Promise<StoredCall> {
   await ensureLoaded();
   const { analysis, origin, label, transcript } = input;
@@ -297,7 +303,18 @@ export async function recordAnalysis(input: {
     checks: analysis.checks,
     observations: analysis.observations,
     transcript,
+    ...(input.sourceCallId ? { sourceCallId: input.sourceCallId } : {}),
   };
+  // Dedup por gravação da 3C Plus: se a mesma gravação já foi auditada (mesmo
+  // sourceCallId ou mesmo rótulo "3C Plus · {id}"), substitui em vez de duplicar.
+  // Vale para a re-análise pela aba Áudios e para a ingestão em lote repetida.
+  if (input.sourceCallId) {
+    const dupIdx = store.findIndex(
+      (c) =>
+        c.sourceCallId === input.sourceCallId || c.label === `3C Plus · ${input.sourceCallId}`,
+    );
+    if (dupIdx >= 0) store.splice(dupIdx, 1);
+  }
   store.unshift(record); // mais recente primeiro
   await persist();
   return record;

@@ -26,8 +26,8 @@ import { VivoLogo } from "@/components/VivoLogo";
 
 const items = [
   { title: "Dashboard", url: "/dashboard", icon: LayoutDashboard },
-  { title: "Ligações", url: "/calls", icon: Phone },
   { title: "Áudios", url: "/audios", icon: AudioLines },
+  { title: "Ligações", url: "/calls", icon: Phone },
   { title: "Equipe", url: "/team", icon: Users },
   { title: "Coaching", url: "/coaching", icon: GraduationCap },
   { title: "Scorecards", url: "/scorecards", icon: ClipboardCheck },

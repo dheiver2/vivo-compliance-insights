@@ -1157,6 +1157,7 @@ export const analyzeThreeCplusCall = createServerFn({ method: "POST" })
       transcript: auditSummary,
       topicSource: transcript,
       agentName,
+      sourceCallId: data.callId,
     });
 
     return {
@@ -1281,6 +1282,7 @@ export const ingestThreeCplusBatch = createServerFn({ method: "POST" })
           transcript: auditSummary,
           topicSource: transcript,
           agentName: r.agent || undefined,
+          sourceCallId: callId,
         });
         ingested++;
       } catch (error) {

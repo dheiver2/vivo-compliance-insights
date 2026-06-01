@@ -7,7 +7,6 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Progress } from "@/components/ui/progress";
-import { StatusBadge } from "@/components/StatusBadge";
 import {
   listThreeCplusCalls,
   analyzeThreeCplusCall,
@@ -76,9 +75,13 @@ function callKey(c: ThreeCplusCall): string {
   return c.id || c.sid;
 }
 
-// Cor do score por faixa (verde ≥75, amarelo ≥50, vermelho abaixo).
-function scoreCls(s: number): string {
-  return s >= 75 ? "text-success" : s >= 50 ? "text-warning-foreground" : "text-destructive";
+// Identificador para baixar a gravação bruta de um áudio do store: o callId da
+// 3C Plus salvo na ingestão; ou, para registros antigos, o sid do rótulo
+// "3C Plus · {sid}". Vazio quando o áudio não tem origem reproduzível.
+function recordingHandle(c: StoredCall): string {
+  if (c.sourceCallId) return c.sourceCallId;
+  const prefix = "3C Plus · ";
+  return c.label.startsWith(prefix) ? c.label.slice(prefix.length).trim() : "";
 }
 
 function AudiosPage() {
@@ -97,6 +100,9 @@ function AudiosPage() {
   // Player por linha: gravações carregadas sob demanda (object URLs).
   const [audio, setAudio] = useState<Record<string, AudioState>>({});
   const urlsRef = useRef<string[]>([]);
+
+  // Disparo de análise por linha no card de áudios (keyed pelo id do registro).
+  const [rowAnalyze, setRowAnalyze] = useState<Record<string, ItemState>>({});
 
   // Libera todos os object URLs criados (evita vazamento de memória).
   function revokeAllAudio() {
@@ -128,6 +134,27 @@ function AudiosPage() {
         ...a,
         [key]: { error: e instanceof Error ? e.message : "falha ao carregar o áudio" },
       }));
+    }
+  }
+
+  // Dispara a (re)análise de um áudio do acervo direto do card. Reusa o mesmo
+  // pipeline da 3C Plus; ao concluir, atualiza dashboard/ligações/equipe etc.
+  async function analyzeOne(callRecordId: string, handle: string) {
+    if (!handle || rowAnalyze[callRecordId]?.status === "processing") return;
+    setRowAnalyze((s) => ({ ...s, [callRecordId]: { status: "processing" } }));
+    try {
+      const res = await analyzeThreeCplusCall({
+        data: { callId: handle, apiToken: apiToken.trim() },
+      });
+      setRowAnalyze((s) => ({ ...s, [callRecordId]: { status: "done", resultId: res.id } }));
+      await qc.invalidateQueries();
+      toast.success("Áudio auditado. Resultado disponível em Ligações.");
+    } catch (e) {
+      setRowAnalyze((s) => ({
+        ...s,
+        [callRecordId]: { status: "error", message: e instanceof Error ? e.message : "falha" },
+      }));
+      toast.error(e instanceof Error ? e.message : "Falha ao auditar o áudio.");
     }
   }
 
@@ -265,11 +292,11 @@ function AudiosPage() {
         </Card>
       )}
 
-      {/* Áudios já auditados (do store) — carrega automaticamente, sem token */}
+      {/* Áudios do acervo (do store) — gravações brutas, com player. Sem análise. */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-base">
-            <FileCheck className="h-4 w-4 text-primary" /> Áudios auditados
+            <FileCheck className="h-4 w-4 text-primary" /> Áudios
             {auditedAudios.length > 0 && (
               <span className="text-sm font-normal text-muted-foreground">
                 ({auditedAudios.length})
@@ -277,7 +304,7 @@ function AudiosPage() {
             )}
           </CardTitle>
           <CardDescription>
-            Gravações de áudio já auditadas pela Mangaba AI. Clique para abrir a ficha completa.
+            Gravações de áudio do acervo. Ouça o áudio original; a análise fica na ficha.
           </CardDescription>
         </CardHeader>
         <CardContent className="pt-0">
@@ -287,39 +314,91 @@ function AudiosPage() {
             </div>
           ) : auditedAudios.length === 0 ? (
             <p className="py-8 text-center text-sm text-muted-foreground">
-              Nenhum áudio auditado ainda. Selecione gravações abaixo para auditar.
+              Nenhum áudio no acervo ainda. Selecione gravações abaixo para auditar.
             </p>
           ) : (
             <div className="divide-y rounded-md border">
-              {auditedAudios.map((c) => (
-                <Link
-                  key={c.id}
-                  to="/calls/$callId"
-                  params={{ callId: c.id }}
-                  className="flex items-center gap-3 p-3 text-sm transition-colors hover:bg-muted/40"
-                >
-                  <div className="min-w-0 flex-1">
-                    <p className="font-medium truncate">
-                      {c.agentName} · {c.topic}
-                    </p>
-                    <p className="text-xs text-muted-foreground truncate">
-                      {c.id} · {new Date(c.createdAt).toLocaleString("pt-BR")}
-                    </p>
-                  </div>
-                  <div className="flex flex-shrink-0 items-center gap-4">
-                    <div className="text-center">
-                      <div className="text-[10px] uppercase text-muted-foreground">Compliance</div>
-                      <div
-                        className={`text-base font-display font-bold ${scoreCls(c.scoreCompliance)}`}
-                      >
-                        {c.scoreCompliance}%
+              {auditedAudios.map((c) => {
+                const handle = recordingHandle(c);
+                const au = audio[handle];
+                return (
+                  <div key={c.id} className="p-3 text-sm">
+                    <div className="flex items-center gap-3">
+                      <div className="min-w-0 flex-1">
+                        <p className="font-medium truncate">
+                          {c.agentName} · {c.topic}
+                        </p>
+                        <p className="text-xs text-muted-foreground truncate">
+                          {c.id} · {new Date(c.createdAt).toLocaleString("pt-BR")}
+                        </p>
                       </div>
+                      {handle ? (
+                        <button
+                          type="button"
+                          onClick={() => toggleAudio(handle)}
+                          disabled={running || au?.loading}
+                          className="inline-flex flex-shrink-0 items-center gap-1 rounded-md border border-border/60 px-2 py-1 text-xs text-foreground transition-colors hover:bg-muted disabled:opacity-50"
+                        >
+                          {au?.loading ? (
+                            <>
+                              <Loader2 className="h-3.5 w-3.5 animate-spin" /> carregando…
+                            </>
+                          ) : au?.url ? (
+                            <>
+                              <X className="h-3.5 w-3.5" /> Ocultar
+                            </>
+                          ) : (
+                            <>
+                              <Volume2 className="h-3.5 w-3.5" /> Ouvir
+                            </>
+                          )}
+                        </button>
+                      ) : (
+                        <span className="flex-shrink-0 text-xs text-muted-foreground">
+                          sem gravação
+                        </span>
+                      )}
+                      {handle && (
+                        <button
+                          type="button"
+                          onClick={() => analyzeOne(c.id, handle)}
+                          disabled={running || rowAnalyze[c.id]?.status === "processing"}
+                          className="inline-flex flex-shrink-0 items-center gap-1 rounded-md border border-primary/40 bg-primary/5 px-2 py-1 text-xs font-medium text-primary transition-colors hover:bg-primary/10 disabled:opacity-50"
+                        >
+                          {rowAnalyze[c.id]?.status === "processing" ? (
+                            <>
+                              <Loader2 className="h-3.5 w-3.5 animate-spin" /> analisando…
+                            </>
+                          ) : rowAnalyze[c.id]?.status === "done" ? (
+                            <>
+                              <CheckCircle2 className="h-3.5 w-3.5" /> reanalisar
+                            </>
+                          ) : (
+                            <>
+                              <Play className="h-3.5 w-3.5" /> Analisar
+                            </>
+                          )}
+                        </button>
+                      )}
+                      <Link
+                        to="/calls/$callId"
+                        params={{ callId: c.id }}
+                        className="flex flex-shrink-0 items-center gap-0.5 text-xs text-muted-foreground hover:text-foreground"
+                      >
+                        ficha <ChevronRight className="h-3.5 w-3.5" />
+                      </Link>
                     </div>
-                    <StatusBadge status={c.status} />
-                    <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                    {rowAnalyze[c.id]?.status === "error" && (
+                      <p className="mt-2 text-xs text-destructive">{rowAnalyze[c.id]?.message}</p>
+                    )}
+                    {au?.error && <p className="mt-2 text-xs text-destructive">{au.error}</p>}
+                    {au?.url && (
+                      // eslint-disable-next-line jsx-a11y/media-has-caption
+                      <audio src={au.url} controls autoPlay className="mt-2 h-9 w-full" />
+                    )}
                   </div>
-                </Link>
-              ))}
+                );
+              })}
             </div>
           )}
         </CardContent>

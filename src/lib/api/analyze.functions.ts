@@ -30,16 +30,25 @@ const MAX_AUDIO_BYTES = 25 * 1024 * 1024;
 // critérios exigem evidência ao longo de toda a ligação), então a janela é
 // generosa — o Llama 3.1 8B tem contexto de 128k, então até ligações longas
 // (~20 min) entram inteiras; só outliers extremos são janelados.
-const MAX_PROMPT_CHARS = 32000; // ~8k tokens: cobre a transcrição inteira da maioria das ligações
+const MAX_PROMPT_CHARS = 20000; // ~5k tokens: cobre a transcrição da maioria das ligações com folga
 const MAX_EVIDENCE_CHARS = 200; // justificativa por item — mais detalhe na avaliação
 const MAX_OBSERVATIONS = 8; // teto de observações retornadas
-const LLM_MAX_TOKENS = 2000; // saída maior: muitos critérios + evidência sem truncar
+const LLM_MAX_TOKENS = 1200; // saída suficiente p/ checklist + evidências (schema compacto)
 
 // O prompt é montado a partir da Ficha de Monitoria vigente (gerida pelo
 // analista). Cada critério ativo vira um item da checklist, com sua descrição
 // e marcação de criticidade — assim a IA avalia exatamente o que o analista
 // configurou.
+const _promptCache = new Map<string, string>();
 function buildSystemPrompt(criteria: MonitoringCriterion[]): string {
+  // A assinatura inclui o ÍNDICE: a numeração dos itens no prompt depende da
+  // ORDEM, então reordenar a ficha precisa invalidar o cache (senão o LLM
+  // receberia números trocados).
+  const sig = criteria
+    .map((c, i) => `${i}:${c.label}:${c.critical ? 1 : 0}:${c.description}`)
+    .join("|");
+  const cached = _promptCache.get(sig);
+  if (cached) return cached;
   const items = criteria
     .map(
       (c, i) =>
@@ -48,14 +57,16 @@ function buildSystemPrompt(criteria: MonitoringCriterion[]): string {
     .join("\n");
   // Prompt enxuto + schema de chaves curtas reduzem tokens de entrada e saída.
   // "e" (evidência) só é pedido para itens reprovados.
-  return `Você é auditor de compliance e qualidade de call center da Vivo. Avalie a transcrição e responda APENAS um JSON compacto (sem markdown, sem texto extra):
+  const prompt = `Você é auditor de compliance e qualidade de call center da Vivo. Avalie a transcrição e responda APENAS um JSON compacto (sem markdown, sem texto extra):
 {"sq":<0-100 qualidade>,"st":"positivo|neutro|negativo","rs":"<resumo 1 frase>","ck":[{"i":<nº do critério>,"p":<0 ou 1: cumprido?>,"s":<0-100>,"na":<0 ou 1: critério NÃO se aplica a esta ligação?>,"e":"<justificativa em ≤35 palavras quando p=0 ou na=1, citando o trecho/evidência>"}],"ob":[{"t":"mm:ss","n":"<observação>","sv":"ok|warning|critical"}]}
-Regras: "ck" deve ter um item para CADA critério abaixo, usando o número "i" indicado. Inclua "e" quando p=0 ou na=1. No máximo ${MAX_OBSERVATIONS} observações, apenas as relevantes.
+Regras: "ck" deve ter um item para CADA critério abaixo, usando o número "i" indicado. Inclua "e" SOMENTE quando p=0 ou na=1; quando p=1 (aprovado) NÃO inclua "e" (deixe vazio). No máximo ${MAX_OBSERVATIONS} observações, apenas as relevantes.
 Avalie com justiça e bom senso: dê crédito parcial (s mais alto) quando o item foi cumprido de forma substancial, ainda que imperfeita, e marque p=0 apenas quando o item esteve claramente ausente ou gravemente deficiente — não reprove por desvios menores ou variações de roteiro.
 Checklist contextual: marque na=1 quando o critério for IRRELEVANTE para a natureza da ligação (ex.: "oferta de produto" ou "prazos/custos de adesão" numa ligação só de suporte/dúvida/reclamação, sem venda). Itens com na=1 são desconsiderados, não penalizam. NUNCA use na=1 em itens [CRÍTICO] nem em deveres que valem para toda ligação (identificação, aviso de gravação, consentimento LGPD, confirmação cadastral) — esses sempre se aplicam; se ausentes, é p=0.
 Itens [CRÍTICO] (regulatórios) merecem atenção redobrada, mas julgue pelo que de fato ocorreu na ligação, considerando o contexto.
 Critérios:
 ${items}`;
+  _promptCache.set(sig, prompt);
+  return prompt;
 }
 
 const SentimentSchema = z.enum(["positivo", "neutro", "negativo"]);
@@ -334,8 +345,11 @@ function compressTranscript(text: string): string {
 // script concentram-se nas pontas, então a evidência é preservada.
 function windowTranscript(text: string, max = MAX_PROMPT_CHARS): string {
   if (text.length <= max) return text;
-  const head = Math.floor(max * 0.5);
-  const tail = Math.floor(max * 0.3);
+  // Início (abertura/identificação/sondagem) + fim (fechamento/protocolo) onde os
+  // critérios mais se evidenciam, MAS preserva 25% do meio: em ligação de vendas
+  // a argumentação/contorno de objeção acontece no miolo.
+  const head = Math.floor(max * 0.4);
+  const tail = Math.floor(max * 0.35);
   const midLen = max - head - tail;
   const midStart = Math.max(head, Math.floor((text.length - midLen) / 2));
   const a = text.slice(0, head);
@@ -1119,11 +1133,23 @@ interface ThreeCplusReport {
   call_duration?: number | string;
   duration?: number | string;
   billed_time?: number | string;
+  total_duration?: number | string;
+  hangup_duration?: number | string;
 }
 
-// Extrai a duração (em segundos) do report, testando os campos conhecidos.
+// Extrai a duração (em segundos) do report, testando os campos conhecidos em
+// ordem de preferência (tempo de fala → duração total → faturado).
 function reportDurationSec(r: ThreeCplusReport): number | undefined {
-  for (const v of [r.speaking_time, r.talk_time, r.call_duration, r.duration, r.billed_time]) {
+  const candidates = [
+    r.speaking_time,
+    r.talk_time,
+    r.call_duration,
+    r.duration,
+    r.total_duration,
+    r.hangup_duration,
+    r.billed_time,
+  ];
+  for (const v of candidates) {
     const n = typeof v === "string" ? Number(v) : v;
     if (typeof n === "number" && Number.isFinite(n) && n > 0) return Math.round(n);
   }
@@ -1237,6 +1263,12 @@ export const analyzeThreeCplusCall = createServerFn({ method: "POST" })
     const srcKey = `src:${downloadId}:${criteriaSig(criteria)}`;
     let analysis = await getCachedAnalysis(srcKey);
     let topicSource: string;
+    // Duração: SEMPRE a real da 3C Plus quando o report a traz. Só estimamos pelo
+    // DIÁLOGO COMPLETO no cache miss (onde a transcrição bruta existe). No cache
+    // hit não há diálogo — não estimar pelo resumo (subestimaria ~10x); deixa
+    // undefined e o dedup preserva o durationSec já gravado na 1ª análise.
+    const realDuration = report ? reportDurationSec(report) : undefined;
+    let durationSec: number | undefined = realDuration;
     if (analysis) {
       // Sem transcrição nova: classifica o tema pelo resumo da auditoria.
       topicSource = analysis.summary;
@@ -1255,6 +1287,7 @@ export const analyzeThreeCplusCall = createServerFn({ method: "POST" })
       }
       analysis = await analyzeTranscript(transcript);
       topicSource = transcript;
+      durationSec = realDuration ?? estimateDurationSec(transcript);
       // Só cacheia análise REAL (Mangaba AI) — nunca o fallback degradado.
       if (analysis.source === "huggingface") await setCachedAnalysis(srcKey, analysis);
     }
@@ -1270,7 +1303,7 @@ export const analyzeThreeCplusCall = createServerFn({ method: "POST" })
       agentName,
       sourceCallId: downloadId,
       callDate: report?.call_date_rfc3339 || report?.call_date,
-      durationSec: (report && reportDurationSec(report)) || estimateDurationSec(topicSource),
+      durationSec,
     });
 
     return {

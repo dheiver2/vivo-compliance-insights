@@ -359,7 +359,14 @@ export async function recordAnalysis(input: {
       (c) =>
         c.label === label || (input.sourceCallId != null && c.sourceCallId === input.sourceCallId),
     );
-    if (dupIdx >= 0) store.splice(dupIdx, 1);
+    if (dupIdx >= 0) {
+      // Re-auditoria: preserva a duração já medida antes se a nova não veio
+      // (ex.: cache hit sem report) — evita zerar/subestimar o tempo da ligação.
+      if (record.durationSec == null && store[dupIdx].durationSec) {
+        record.durationSec = store[dupIdx].durationSec;
+      }
+      store.splice(dupIdx, 1);
+    }
   }
   store.unshift(record); // mais recente primeiro
   pruneByRetention(); // mantém só hoje + ontem

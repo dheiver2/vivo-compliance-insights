@@ -354,6 +354,31 @@ export async function recordAnalysis(input: {
   return record;
 }
 
+// Atualiza a análise de uma ligação JÁ armazenada (re-auditoria sob a norma
+// vigente), preservando metadados imutáveis (id, protocolo, data, atendente,
+// origem, transcrição, assinatura/contestação). Usado pelo reprocessamento em
+// lote quando a Ficha de Monitoria muda.
+export async function updateCallAnalysis(
+  id: string,
+  analysis: CallAnalysis,
+): Promise<StoredCall | null> {
+  await ensureLoaded();
+  const c = store.find((x) => x.id === id);
+  if (!c) return null;
+  c.scoreCompliance = analysis.scoreCompliance;
+  c.scoreQuality = analysis.scoreQuality;
+  c.sentiment = analysis.sentiment;
+  c.status = statusFromScore(analysis.scoreCompliance);
+  c.summary = analysis.summary;
+  c.source = analysis.source;
+  c.model =
+    analysis.model ?? (analysis.source === "huggingface" ? "huggingface" : "heurística local");
+  c.checks = analysis.checks;
+  c.observations = analysis.observations;
+  await persist();
+  return c;
+}
+
 export async function listCalls(limit?: number): Promise<StoredCall[]> {
   await ensureLoaded();
   return limit ? store.slice(0, limit) : store.slice();

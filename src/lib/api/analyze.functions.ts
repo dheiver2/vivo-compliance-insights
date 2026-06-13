@@ -9,7 +9,7 @@ import {
   type Sentiment,
 } from "../compliance";
 import { redactText } from "../pii";
-import { listCalls, recordAnalysis } from "../server/calls-store.server";
+import { listCalls, recordAnalysis, updateCallAnalysis } from "../server/calls-store.server";
 import { getActiveCriteria, type MonitoringCriterion } from "../server/monitoring-form.server";
 import { isAuthenticated, isGateEnabled, requireAuth } from "../server/auth.server";
 import { getCachedAnalysis, setCachedAnalysis } from "../server/ai-cache.server";
@@ -663,6 +663,33 @@ export const analyzeCall = createServerFn({ method: "POST" })
     });
     return { ...analysis, id: stored.id, protocol: stored.protocol };
   });
+
+// Reprocessa TODAS as ligações armazenadas sob a Ficha de Monitoria vigente.
+// Necessário quando a norma muda: ligações auditadas pela ficha anterior têm
+// critérios (labels) diferentes e por isso aparecem com 0% de aderência nos
+// novos itens. Re-audita o texto retido de cada ligação e regrava os checks.
+// Observação: por política de LGPD, o texto retido pode ser o RESUMO da
+// auditoria (não a transcrição bruta) — nesses casos a re-auditoria é aproximada.
+export const reprocessCalls = createServerFn({ method: "POST" }).handler(
+  async (): Promise<{ updated: number; total: number; skipped: number }> => {
+    requireAuth();
+    const calls = await listCalls();
+    let updated = 0;
+    let skipped = 0;
+    for (const c of calls) {
+      const text = (c.transcript ?? "").trim();
+      if (text.length < 20) {
+        skipped++;
+        continue;
+      }
+      const analysis = await analyzeTranscript(text);
+      const result = await updateCallAnalysis(c.id, analysis);
+      if (result) updated++;
+      else skipped++;
+    }
+    return { updated, total: calls.length, skipped };
+  },
+);
 
 const AnalyzeAudioInput = z.object({
   filename: z.string().min(1),

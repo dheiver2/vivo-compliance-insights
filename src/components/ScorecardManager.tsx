@@ -25,6 +25,7 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { getForm, saveForm, resetForm } from "@/lib/api/monitoring.functions";
+import { reprocessCalls } from "@/lib/api/analyze.functions";
 import type { MonitoringCriterion } from "@/lib/server/monitoring-form.server";
 import {
   Loader2,
@@ -36,6 +37,7 @@ import {
   Save,
   ShieldAlert,
   Info,
+  RefreshCw,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -100,6 +102,18 @@ export function ScorecardManager() {
     onError: (e) => toast.error(e instanceof Error ? e.message : "Falha ao restaurar o scorecard."),
   });
 
+  const reprocess = useMutation({
+    mutationFn: () => reprocessCalls(),
+    onSuccess: async (r) => {
+      await qc.invalidateQueries();
+      toast.success(
+        `Reprocessamento concluído: ${r.updated} de ${r.total} ligações re-auditadas com a norma vigente.`,
+      );
+    },
+    onError: (e) =>
+      toast.error(e instanceof Error ? e.message : "Falha ao reprocessar as ligações."),
+  });
+
   function update(id: string, patch: Partial<MonitoringCriterion>) {
     setDraft((d) => d.map((c) => (c.id === id ? { ...c, ...patch } : c)));
   }
@@ -144,11 +158,26 @@ export function ScorecardManager() {
               </p>
               <p className="text-muted-foreground">
                 Estes critérios alimentam o prompt da Mangaba AI e as médias do dashboard. Mudanças
-                valem para novas análises.
+                valem para novas análises — use “Reprocessar ligações” para reavaliar as já
+                auditadas com a norma vigente.
               </p>
             </div>
           </div>
           <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => reprocess.mutate()}
+              disabled={reprocess.isPending}
+              title="Re-audita as ligações já armazenadas usando os critérios atuais"
+            >
+              {reprocess.isPending ? (
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              ) : (
+                <RefreshCw className="h-4 w-4 mr-2" />
+              )}
+              Reprocessar ligações
+            </Button>
             <AlertDialog open={resetOpen} onOpenChange={setResetOpen}>
               <AlertDialogTrigger asChild>
                 <Button variant="outline" size="sm">
@@ -159,8 +188,8 @@ export function ScorecardManager() {
                 <AlertDialogHeader>
                   <AlertDialogTitle>Restaurar o scorecard padrão?</AlertDialogTitle>
                   <AlertDialogDescription>
-                    Os critérios atuais serão substituídos pelo scorecard regulatório padrão (8
-                    itens). Esta ação não pode ser desfeita.
+                    Os critérios atuais serão substituídos pela norma de monitoria de vendas Vivo
+                    Empresas (10 itens). Esta ação não pode ser desfeita.
                   </AlertDialogDescription>
                 </AlertDialogHeader>
                 <AlertDialogFooter>

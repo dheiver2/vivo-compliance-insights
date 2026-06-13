@@ -469,6 +469,7 @@ export interface DashboardData {
     positiveRate: KpiValue; // % com sentimento positivo
     activeAgents: KpiValue; // atendentes distintos monitorados
     aiCoverage: KpiValue; // % analisado pela Mangaba AI (vs. fallback local)
+    fcrRate: KpiValue; // % de resolução no primeiro contato (proxy)
   };
   dailyTrend: TrendPoint[];
   granularity: TrendGranularity;
@@ -484,12 +485,14 @@ export interface DashboardData {
   };
   // Indicadores operacionais típicos de call center de operadora, derivados da
   // conversa entre atendente e cliente na transcrição (sem timestamps reais).
+  // Indicadores operacionais de TEMPO (estimados a partir do diálogo, sem
+  // timestamps reais nas gravações importadas).
   callCenter: {
-    ahtSeconds: KpiValue; // TMA estimado (tempo médio de atendimento) em segundos
-    agentTalkRatio: KpiValue; // % do diálogo falado pelo atendente (talk ratio)
-    avgTurns: KpiValue; // turnos de diálogo por ligação (interatividade)
-    fcrRate: KpiValue; // % de resolução no primeiro contato (proxy)
-    cancelRate: KpiValue; // % de ligações com tema Cancelamento (churn)
+    ahtSeconds: KpiValue; // TMA — tempo médio de atendimento (duração média)
+    agentTalkSeconds: KpiValue; // tempo médio de fala do atendente
+    clientTalkSeconds: KpiValue; // tempo médio de fala do cliente
+    secondsPerTurn: KpiValue; // tempo médio por turno de diálogo
+    totalAuditedSeconds: KpiValue; // tempo total de áudio auditado (volume)
   };
   // Indicadores comerciais (vendas), derivados dos critérios da norma de
   // monitoria de vendas Vivo Empresas aplicada a cada ligação.
@@ -499,6 +502,7 @@ export interface DashboardData {
     argumentationScore: KpiValue; // aderência média à estratégia/argumentação
     activeListeningRate: KpiValue; // % com escuta ativa (não interrompeu o cliente)
     taggingRate: KpiValue; // % com tabulação administrativa correta
+    cancelRate: KpiValue; // % de ligações com tema Cancelamento (churn)
   };
 }
 
@@ -616,23 +620,33 @@ function speakerStats(transcript: string): {
   return { agentWords, clientWords, turns };
 }
 
-// Agrega os KPIs operacionais de uma lista de ligações.
+// Converte palavras em segundos de fala estimados (ritmo conversacional médio).
+const wordsToSec = (words: number) => Math.round((words / SPEECH_WPM) * 60);
+
+// Agrega os indicadores de TEMPO de uma lista de ligações. Sem timestamps reais
+// nas gravações importadas, os tempos são ESTIMADOS a partir da contagem de
+// palavras por locutor (ver SPEECH_WPM).
 function computeCallCenter(list: StoredCall[]) {
-  const ahts: number[] = [];
-  const ratios: number[] = [];
-  const turnsArr: number[] = [];
+  const ahts: number[] = []; // duração total estimada por ligação (s)
+  const agentSecs: number[] = []; // tempo de fala do atendente (s)
+  const clientSecs: number[] = []; // tempo de fala do cliente (s)
+  const perTurnSecs: number[] = []; // tempo médio por turno (s)
+  let totalSec = 0; // soma de toda a duração auditada (s)
   for (const c of list) {
     const { agentWords, clientWords, turns } = speakerStats(c.transcript);
     const total = agentWords + clientWords;
     if (total === 0) continue;
-    ahts.push(Math.round((total / SPEECH_WPM) * 60));
-    ratios.push(Math.round((agentWords / total) * 100));
-    turnsArr.push(turns);
+    const dur = wordsToSec(total);
+    ahts.push(dur);
+    agentSecs.push(wordsToSec(agentWords));
+    clientSecs.push(wordsToSec(clientWords));
+    if (turns > 0) perTurnSecs.push(Math.round(dur / turns));
+    totalSec += dur;
   }
   // FCR (proxy): a ligação fechou com resumo + protocolo OU foi aprovada.
   const resolved = (c: StoredCall) =>
     c.status === "approved" ||
-    c.checks.some((k) => /resumo final|protocolo/i.test(k.label) && k.passed);
+    c.checks.some((k) => /resumo final|protocolo|fechamento/i.test(k.label) && k.passed);
   const fcr = list.length
     ? Math.round((list.filter(resolved).length / list.length) * 100)
     : 0;
@@ -641,8 +655,10 @@ function computeCallCenter(list: StoredCall[]) {
     : 0;
   return {
     aht: avg(ahts),
-    talkRatio: avg(ratios),
-    turns: avg(turnsArr),
+    agentTalk: avg(agentSecs),
+    clientTalk: avg(clientSecs),
+    perTurn: avg(perTurnSecs),
+    totalAudited: totalSec,
     fcr,
     cancel,
   };
@@ -773,6 +789,16 @@ export async function getDashboardData(
     });
   }
 
+  // Indicadores de tempo (call center) e comerciais — calculados uma vez por
+  // janela e reaproveitados (FCR vai para a Visão geral; cancelamento, para o
+  // Comercial).
+  const ccAll = computeCallCenter(all);
+  const ccCur = computeCallCenter(last7);
+  const ccPrev = computeCallCenter(prev7);
+  const sAll = computeSales(all);
+  const sCur = computeSales(last7);
+  const sPrev = computeSales(prev7);
+
   return {
     totalCalls: all.length,
     kpis: {
@@ -790,6 +816,7 @@ export async function getDashboardData(
       positiveRate: { value: rate(all, isPositive), delta: delta(positiveCur, positivePrev) },
       activeAgents: { value: distinctAgents(all), delta: delta(agentsCur, agentsPrev) },
       aiCoverage: { value: rate(all, isAi), delta: delta(aiCur, aiPrev) },
+      fcrRate: { value: ccAll.fcr, delta: delta(ccCur.fcr, ccPrev.fcr) },
     },
     dailyTrend,
     granularity,
@@ -802,33 +829,33 @@ export async function getDashboardData(
       openContestations: all.filter((c) => c.contestation?.status === "aberta").length,
       contestedRate: rate(all, (c) => Boolean(c.contestation)),
     },
-    callCenter: (() => {
-      const cur = computeCallCenter(last7);
-      const prev = computeCallCenter(prev7);
-      const allCc = computeCallCenter(all);
-      return {
-        ahtSeconds: { value: allCc.aht, delta: delta(cur.aht, prev.aht) },
-        agentTalkRatio: { value: allCc.talkRatio, delta: delta(cur.talkRatio, prev.talkRatio) },
-        avgTurns: { value: allCc.turns, delta: delta(cur.turns, prev.turns) },
-        fcrRate: { value: allCc.fcr, delta: delta(cur.fcr, prev.fcr) },
-        cancelRate: { value: allCc.cancel, delta: delta(cur.cancel, prev.cancel) },
-      };
-    })(),
-    sales: (() => {
-      const cur = computeSales(last7);
-      const prev = computeSales(prev7);
-      const allS = computeSales(all);
-      return {
-        conversionRate: { value: allS.conversion, delta: delta(cur.conversion, prev.conversion) },
-        sondagemScore: { value: allS.sondagem, delta: delta(cur.sondagem, prev.sondagem) },
-        argumentationScore: {
-          value: allS.argumentation,
-          delta: delta(cur.argumentation, prev.argumentation),
-        },
-        activeListeningRate: { value: allS.listening, delta: delta(cur.listening, prev.listening) },
-        taggingRate: { value: allS.tagging, delta: delta(cur.tagging, prev.tagging) },
-      };
-    })(),
+    callCenter: {
+      ahtSeconds: { value: ccAll.aht, delta: delta(ccCur.aht, ccPrev.aht) },
+      agentTalkSeconds: {
+        value: ccAll.agentTalk,
+        delta: delta(ccCur.agentTalk, ccPrev.agentTalk),
+      },
+      clientTalkSeconds: {
+        value: ccAll.clientTalk,
+        delta: delta(ccCur.clientTalk, ccPrev.clientTalk),
+      },
+      secondsPerTurn: { value: ccAll.perTurn, delta: delta(ccCur.perTurn, ccPrev.perTurn) },
+      totalAuditedSeconds: {
+        value: ccAll.totalAudited,
+        delta: delta(ccCur.totalAudited, ccPrev.totalAudited),
+      },
+    },
+    sales: {
+      conversionRate: { value: sAll.conversion, delta: delta(sCur.conversion, sPrev.conversion) },
+      sondagemScore: { value: sAll.sondagem, delta: delta(sCur.sondagem, sPrev.sondagem) },
+      argumentationScore: {
+        value: sAll.argumentation,
+        delta: delta(sCur.argumentation, sPrev.argumentation),
+      },
+      activeListeningRate: { value: sAll.listening, delta: delta(sCur.listening, sPrev.listening) },
+      taggingRate: { value: sAll.tagging, delta: delta(sCur.tagging, sPrev.tagging) },
+      cancelRate: { value: ccAll.cancel, delta: delta(ccCur.cancel, ccPrev.cancel) },
+    },
   };
 }
 

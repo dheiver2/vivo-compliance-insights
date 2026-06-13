@@ -2,6 +2,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Progress } from "@/components/ui/progress";
 import { StatusBadge } from "@/components/StatusBadge";
 import { getDashboard } from "@/lib/api/calls.functions";
@@ -27,6 +28,7 @@ import {
   Repeat,
   Target,
   PhoneOff,
+  Hourglass,
   TrendingUp as TrendingUpIcon,
   Search,
   MessagesSquare,
@@ -153,6 +155,13 @@ function mmss(totalSeconds: number) {
   return `${m}:${String(s).padStart(2, "0")}`;
 }
 
+// Duração longa (volume total) em h:mm ou m min.
+function hhmm(totalSeconds: number) {
+  const h = Math.floor(totalSeconds / 3600);
+  const m = Math.round((totalSeconds % 3600) / 60);
+  return h > 0 ? `${h}h${String(m).padStart(2, "0")}` : `${m} min`;
+}
+
 function scoreCls(s: number) {
   return s >= 75 ? "text-success" : s >= 50 ? "text-warning-foreground" : "text-destructive";
 }
@@ -180,7 +189,9 @@ function Dashboard() {
   const { data, isLoading, isFetching, refetch, dataUpdatedAt } = useQuery<DashboardData>({
     queryKey: ["dashboard", granularity],
     queryFn: () => getDashboard({ data: { granularity } }),
-    refetchOnWindowFocus: true,
+    // Painel ao vivo: re-busca a cada 15s (mais frequente que o padrão global),
+    // refletindo automaticamente cada nova ligação auditada pelos motores.
+    refetchInterval: 15_000,
   });
 
   const gMeta = GRANULARITY_OPTIONS.find((o) => o.value === granularity)!;
@@ -195,9 +206,12 @@ function Dashboard() {
           </p>
         </div>
         <div className="flex items-center gap-4">
-          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+          <div
+            className="flex items-center gap-2 rounded-full border border-success/30 bg-success/10 px-3 py-1 text-xs font-medium text-success"
+            title="O painel se atualiza automaticamente a cada nova ligação auditada — sem ação manual."
+          >
             <span className="h-2 w-2 rounded-full bg-success animate-pulse" />
-            {data ? `${data.modelUsage.length} componentes de IA em uso` : "carregando…"}
+            Ao vivo · atualização automática
           </div>
           <Link
             to="/relatorios"
@@ -219,159 +233,183 @@ function Dashboard() {
 
       {data && data.totalCalls > 0 && (
         <>
-          <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            <KpiCard
-              icon={Phone}
-              label="Ligações auditadas"
-              value={data.kpis.totalCalls.value.toLocaleString("pt-BR")}
-              delta={data.kpis.totalCalls.delta}
-            />
-            <KpiCard
-              icon={ShieldCheck}
-              label="Compliance médio"
-              value={data.kpis.avgCompliance.value}
-              delta={data.kpis.avgCompliance.delta}
-              suffix="%"
-            />
-            <KpiCard
-              icon={Sparkles}
-              label="Qualidade média"
-              value={data.kpis.avgQuality.value}
-              delta={data.kpis.avgQuality.delta}
-              suffix="%"
-            />
-            <KpiCard
-              icon={AlertTriangle}
-              label="Alertas críticos"
-              value={data.kpis.criticalAlerts.value}
-              delta={data.kpis.criticalAlerts.delta}
-            />
-            <KpiCard
-              icon={CheckCircle2}
-              label="Taxa de aprovação"
-              value={data.kpis.approvalRate.value}
-              delta={data.kpis.approvalRate.delta}
-              suffix="%"
-            />
-            <KpiCard
-              icon={Smile}
-              label="Sentimento positivo"
-              value={data.kpis.positiveRate.value}
-              delta={data.kpis.positiveRate.delta}
-              suffix="%"
-            />
-            <KpiCard
-              icon={Users}
-              label="Atendentes monitorados"
-              value={data.kpis.activeAgents.value}
-              delta={data.kpis.activeAgents.delta}
-            />
-            <KpiCard
-              icon={Cpu}
-              label="Cobertura Mangaba AI"
-              value={data.kpis.aiCoverage.value}
-              delta={data.kpis.aiCoverage.delta}
-              suffix="%"
-            />
-          </section>
+          <Tabs defaultValue="geral" className="space-y-5">
+            <div className="flex items-end justify-between gap-4 flex-wrap">
+              <div>
+                <h2 className="text-lg font-display font-semibold tracking-tight">Indicadores</h2>
+                <p className="text-sm text-muted-foreground">
+                  Recalculados automaticamente a cada ligação auditada
+                </p>
+              </div>
+              <TabsList className="h-10 p-1">
+                <TabsTrigger value="geral" className="gap-1.5 px-4">
+                  <Sparkles className="h-3.5 w-3.5" /> Visão geral
+                </TabsTrigger>
+                <TabsTrigger value="operacional" className="gap-1.5 px-4">
+                  <Phone className="h-3.5 w-3.5" /> Operacional
+                </TabsTrigger>
+                <TabsTrigger value="comercial" className="gap-1.5 px-4">
+                  <TrendingUpIcon className="h-3.5 w-3.5" /> Comercial
+                </TabsTrigger>
+              </TabsList>
+            </div>
 
-          <section className="space-y-3">
-            <div className="flex items-center gap-2">
-              <Phone className="h-4 w-4 text-primary" />
-              <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
-                Indicadores operacionais — call center
-              </h2>
-              <span className="text-xs text-muted-foreground">
-                derivados do diálogo atendente × cliente
-              </span>
-            </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
-              <KpiCard
-                icon={Clock}
-                label="TMA estimado"
-                value={mmss(data.callCenter.ahtSeconds.value)}
-                delta={data.callCenter.ahtSeconds.delta}
-                invertDelta
-              />
-              <KpiCard
-                icon={Mic}
-                label="Fala do atendente"
-                value={data.callCenter.agentTalkRatio.value}
-                delta={data.callCenter.agentTalkRatio.delta}
-                suffix="%"
-              />
-              <KpiCard
-                icon={Repeat}
-                label="Turnos por ligação"
-                value={data.callCenter.avgTurns.value}
-                delta={data.callCenter.avgTurns.delta}
-              />
-              <KpiCard
-                icon={Target}
-                label="Resolução 1º contato"
-                value={data.callCenter.fcrRate.value}
-                delta={data.callCenter.fcrRate.delta}
-                suffix="%"
-              />
-              <KpiCard
-                icon={PhoneOff}
-                label="Taxa de cancelamento"
-                value={data.callCenter.cancelRate.value}
-                delta={data.callCenter.cancelRate.delta}
-                suffix="%"
-                invertDelta
-              />
-            </div>
-          </section>
+            <TabsContent value="geral" className="mt-0">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                <KpiCard
+                  icon={Phone}
+                  label="Ligações auditadas"
+                  value={data.kpis.totalCalls.value.toLocaleString("pt-BR")}
+                  delta={data.kpis.totalCalls.delta}
+                />
+                <KpiCard
+                  icon={ShieldCheck}
+                  label="Compliance médio"
+                  value={data.kpis.avgCompliance.value}
+                  delta={data.kpis.avgCompliance.delta}
+                  suffix="%"
+                />
+                <KpiCard
+                  icon={Sparkles}
+                  label="Qualidade média"
+                  value={data.kpis.avgQuality.value}
+                  delta={data.kpis.avgQuality.delta}
+                  suffix="%"
+                />
+                <KpiCard
+                  icon={AlertTriangle}
+                  label="Alertas críticos"
+                  value={data.kpis.criticalAlerts.value}
+                  delta={data.kpis.criticalAlerts.delta}
+                />
+                <KpiCard
+                  icon={CheckCircle2}
+                  label="Taxa de aprovação"
+                  value={data.kpis.approvalRate.value}
+                  delta={data.kpis.approvalRate.delta}
+                  suffix="%"
+                />
+                <KpiCard
+                  icon={Smile}
+                  label="Sentimento positivo"
+                  value={data.kpis.positiveRate.value}
+                  delta={data.kpis.positiveRate.delta}
+                  suffix="%"
+                />
+                <KpiCard
+                  icon={Users}
+                  label="Atendentes monitorados"
+                  value={data.kpis.activeAgents.value}
+                  delta={data.kpis.activeAgents.delta}
+                />
+                <KpiCard
+                  icon={Cpu}
+                  label="Cobertura Mangaba AI"
+                  value={data.kpis.aiCoverage.value}
+                  delta={data.kpis.aiCoverage.delta}
+                  suffix="%"
+                />
+                <KpiCard
+                  icon={Target}
+                  label="Resolução 1º contato"
+                  value={data.kpis.fcrRate.value}
+                  delta={data.kpis.fcrRate.delta}
+                  suffix="%"
+                />
+              </div>
+            </TabsContent>
 
-          <section className="space-y-3">
-            <div className="flex items-center gap-2">
-              <TrendingUpIcon className="h-4 w-4 text-primary" />
-              <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
-                Indicadores comerciais — vendas
-              </h2>
-              <span className="text-xs text-muted-foreground">
-                norma de monitoria de vendas Vivo Empresas
-              </span>
-            </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
-              <KpiCard
-                icon={Target}
-                label="Taxa de conversão"
-                value={data.sales.conversionRate.value}
-                delta={data.sales.conversionRate.delta}
-                suffix="%"
-              />
-              <KpiCard
-                icon={Search}
-                label="Aderência à sondagem"
-                value={data.sales.sondagemScore.value}
-                delta={data.sales.sondagemScore.delta}
-                suffix="%"
-              />
-              <KpiCard
-                icon={MessagesSquare}
-                label="Argumentação"
-                value={data.sales.argumentationScore.value}
-                delta={data.sales.argumentationScore.delta}
-                suffix="%"
-              />
-              <KpiCard
-                icon={Ear}
-                label="Escuta ativa"
-                value={data.sales.activeListeningRate.value}
-                delta={data.sales.activeListeningRate.delta}
-                suffix="%"
-              />
-              <KpiCard
-                icon={ClipboardCheck}
-                label="Tabulação correta"
-                value={data.sales.taggingRate.value}
-                delta={data.sales.taggingRate.delta}
-                suffix="%"
-              />
-            </div>
-          </section>
+            <TabsContent value="operacional" className="mt-0 space-y-3">
+              <p className="text-xs text-muted-foreground">
+                Tempos estimados a partir do diálogo atendente × cliente (gravações sem timestamps
+                reais)
+              </p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+                <KpiCard
+                  icon={Clock}
+                  label="TMA — tempo médio"
+                  value={mmss(data.callCenter.ahtSeconds.value)}
+                  delta={data.callCenter.ahtSeconds.delta}
+                  invertDelta
+                />
+                <KpiCard
+                  icon={Mic}
+                  label="Fala do atendente"
+                  value={mmss(data.callCenter.agentTalkSeconds.value)}
+                  delta={data.callCenter.agentTalkSeconds.delta}
+                />
+                <KpiCard
+                  icon={Ear}
+                  label="Fala do cliente"
+                  value={mmss(data.callCenter.clientTalkSeconds.value)}
+                  delta={data.callCenter.clientTalkSeconds.delta}
+                />
+                <KpiCard
+                  icon={Repeat}
+                  label="Tempo por turno"
+                  value={mmss(data.callCenter.secondsPerTurn.value)}
+                  delta={data.callCenter.secondsPerTurn.delta}
+                />
+                <KpiCard
+                  icon={Hourglass}
+                  label="Tempo total auditado"
+                  value={hhmm(data.callCenter.totalAuditedSeconds.value)}
+                  delta={data.callCenter.totalAuditedSeconds.delta}
+                />
+              </div>
+            </TabsContent>
+
+            <TabsContent value="comercial" className="mt-0 space-y-3">
+              <p className="text-xs text-muted-foreground">
+                Norma de monitoria de vendas Vivo Empresas
+              </p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+                <KpiCard
+                  icon={Target}
+                  label="Taxa de conversão"
+                  value={data.sales.conversionRate.value}
+                  delta={data.sales.conversionRate.delta}
+                  suffix="%"
+                />
+                <KpiCard
+                  icon={Search}
+                  label="Aderência à sondagem"
+                  value={data.sales.sondagemScore.value}
+                  delta={data.sales.sondagemScore.delta}
+                  suffix="%"
+                />
+                <KpiCard
+                  icon={MessagesSquare}
+                  label="Argumentação"
+                  value={data.sales.argumentationScore.value}
+                  delta={data.sales.argumentationScore.delta}
+                  suffix="%"
+                />
+                <KpiCard
+                  icon={Ear}
+                  label="Escuta ativa"
+                  value={data.sales.activeListeningRate.value}
+                  delta={data.sales.activeListeningRate.delta}
+                  suffix="%"
+                />
+                <KpiCard
+                  icon={ClipboardCheck}
+                  label="Tabulação correta"
+                  value={data.sales.taggingRate.value}
+                  delta={data.sales.taggingRate.delta}
+                  suffix="%"
+                />
+                <KpiCard
+                  icon={PhoneOff}
+                  label="Taxa de cancelamento"
+                  value={data.sales.cancelRate.value}
+                  delta={data.sales.cancelRate.delta}
+                  suffix="%"
+                  invertDelta
+                />
+              </div>
+            </TabsContent>
+          </Tabs>
 
           <Card>
             <CardContent className="flex flex-wrap items-center justify-between gap-4 py-4">

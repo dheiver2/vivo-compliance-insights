@@ -14,6 +14,7 @@ import {
 } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Progress } from "@/components/ui/progress";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import {
   listThreeCplusCalls,
   analyzeThreeCplusCall,
@@ -275,7 +276,6 @@ function AudiosPage() {
   const [recAgent, setRecAgent] = useState("all");
   const [recCampaign, setRecCampaign] = useState("all");
   const [recQueue, setRecQueue] = useState("all");
-  const [auditableOnly, setAuditableOnly] = useState(false);
 
   const recAgents = useMemo(
     () => [...new Set(calls.map((c) => c.agent).filter(Boolean))].sort((a, b) => a.localeCompare(b)),
@@ -297,7 +297,6 @@ function AudiosPage() {
       if (recAgent !== "all" && c.agent !== recAgent) return false;
       if (recCampaign !== "all" && c.campaign !== recCampaign) return false;
       if (recQueue !== "all" && c.queueName !== recQueue) return false;
-      if (auditableOnly && !assessAuditability(c).auditable) return false;
       if (
         q &&
         !`${c.id} ${c.agent} ${c.number} ${c.campaign} ${c.queueName}`.toLowerCase().includes(q)
@@ -305,11 +304,17 @@ function AudiosPage() {
         return false;
       return true;
     });
-  }, [calls, recSearch, recAgent, recCampaign, recQueue, auditableOnly]);
-  // Auditáveis = passam nos critérios de elegibilidade (gravação + atendente).
-  // Só essas podem ser selecionadas para auditoria.
+  }, [calls, recSearch, recAgent, recCampaign, recQueue]);
+  // Auditáveis (elegíveis) = passam nos critérios de elegibilidade de mercado
+  // (gravação + atendente). Só essas podem ser selecionadas para auditoria.
   const auditable = useMemo(
     () => filteredCalls.filter((c) => assessAuditability(c).auditable),
+    [filteredCalls],
+  );
+  // Não elegíveis = reprovaram na elegibilidade e NÃO são auditadas — ficam numa
+  // aba separada, apenas para consulta do motivo da reprovação.
+  const ineligible = useMemo(
+    () => filteredCalls.filter((c) => !assessAuditability(c).auditable),
     [filteredCalls],
   );
 
@@ -317,8 +322,7 @@ function AudiosPage() {
     recSearch.trim() !== "" ||
     recAgent !== "all" ||
     recCampaign !== "all" ||
-    recQueue !== "all" ||
-    auditableOnly;
+    recQueue !== "all";
 
   const selectedIds = useMemo(
     () => auditable.map(callKey).filter((k) => selected.has(k)),
@@ -386,6 +390,73 @@ function AudiosPage() {
   const errCount = Object.values(progress).filter((s) => s.status === "error").length;
   const total = running || doneCount + errCount > 0 ? Object.keys(progress).length : 0;
   const pct = total > 0 ? Math.round(((doneCount + errCount) / total) * 100) : 0;
+
+  // Renderiza uma linha de gravação (reusada nas abas Elegíveis / Não elegíveis).
+  function renderCall(c: ThreeCplusCall) {
+    const key = callKey(c);
+    const st = progress[key];
+    const checked = selected.has(key);
+    const au = audio[key];
+    const audit = assessAuditability(c);
+    return (
+      <div key={key} className={`p-3 text-sm ${audit.auditable ? "" : "opacity-70"}`}>
+        <div className="flex items-center gap-3">
+          {audit.auditable && (
+            <Checkbox
+              checked={checked}
+              disabled={running}
+              onCheckedChange={() => toggle(key)}
+              aria-label={`Selecionar ligação ${key}`}
+            />
+          )}
+          <div className="min-w-0 flex-1">
+            <p className="font-medium truncate">
+              {c.agent || "Sem atendente"} · {c.number || "—"}
+            </p>
+            <p className="text-xs text-muted-foreground truncate">
+              {c.callDate || "—"} · {c.campaign || c.queueName || "—"}
+            </p>
+          </div>
+          {c.recorded && (
+            <button
+              type="button"
+              onClick={() => toggleAudio(key)}
+              disabled={running || au?.loading}
+              className="inline-flex items-center gap-1 rounded-md border border-border/60 px-2 py-1 text-xs text-foreground transition-colors hover:bg-muted disabled:opacity-50 flex-shrink-0"
+            >
+              {au?.loading ? (
+                <>
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" /> carregando…
+                </>
+              ) : au?.url ? (
+                <>
+                  <X className="h-3.5 w-3.5" /> Ocultar
+                </>
+              ) : (
+                <>
+                  <Volume2 className="h-3.5 w-3.5" /> Ouvir
+                </>
+              )}
+            </button>
+          )}
+          {!audit.auditable && (
+            <span
+              className="flex-shrink-0 rounded bg-warning/15 px-2 py-0.5 text-xs font-medium text-warning-foreground"
+              title="Reprovada na elegibilidade — não auditada"
+            >
+              {audit.reason}
+            </span>
+          )}
+          <ItemBadge recorded={c.recorded} state={st} />
+        </div>
+        {au?.error && <p className="mt-2 text-xs text-destructive">{au.error}</p>}
+        {au?.url && (
+          // eslint-disable-next-line jsx-a11y/media-has-caption
+          <audio src={au.url} controls autoPlay className="mt-2 h-9 w-full" />
+        )}
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6 max-w-[1400px] mx-auto">
@@ -736,14 +807,6 @@ function AudiosPage() {
                   </SelectContent>
                 </Select>
               )}
-              <label className="flex cursor-pointer items-center gap-1.5 text-xs text-muted-foreground">
-                <Checkbox
-                  checked={auditableOnly}
-                  onCheckedChange={(v) => setAuditableOnly(Boolean(v))}
-                  disabled={running}
-                />
-                Só auditáveis
-              </label>
               {recFilterActive && (
                 <button
                   type="button"
@@ -752,7 +815,6 @@ function AudiosPage() {
                     setRecAgent("all");
                     setRecCampaign("all");
                     setRecQueue("all");
-                    setAuditableOnly(false);
                   }}
                   className="text-xs text-muted-foreground hover:text-foreground hover:underline"
                 >
@@ -773,79 +835,39 @@ function AudiosPage() {
           </CardHeader>
 
           <CardContent className="pt-0">
-            {filteredCalls.length === 0 ? (
-              <p className="py-8 text-center text-sm text-muted-foreground">
-                Nenhuma gravação para esse filtro.
-              </p>
-            ) : (
-              <div className="divide-y rounded-md border">
-                {filteredCalls.map((c) => {
-                  const key = callKey(c);
-                  const st = progress[key];
-                  const checked = selected.has(key);
-                  const au = audio[key];
-                  const audit = assessAuditability(c);
-                return (
-                  <div key={key} className={`p-3 text-sm ${audit.auditable ? "" : "opacity-70"}`}>
-                    <div className="flex items-center gap-3">
-                      <Checkbox
-                        checked={checked}
-                        disabled={!audit.auditable || running}
-                        onCheckedChange={() => toggle(key)}
-                        aria-label={`Selecionar ligação ${key}`}
-                      />
-                      <div className="min-w-0 flex-1">
-                        <p className="font-medium truncate">
-                          {c.agent || "Sem atendente"} · {c.number || "—"}
-                        </p>
-                        <p className="text-xs text-muted-foreground truncate">
-                          {c.callDate || "—"} · {c.campaign || c.queueName || "—"}
-                        </p>
-                      </div>
-                      {c.recorded && (
-                        <button
-                          type="button"
-                          onClick={() => toggleAudio(key)}
-                          disabled={running || au?.loading}
-                          className="inline-flex items-center gap-1 rounded-md border border-border/60 px-2 py-1 text-xs text-foreground transition-colors hover:bg-muted disabled:opacity-50 flex-shrink-0"
-                        >
-                          {au?.loading ? (
-                            <>
-                              <Loader2 className="h-3.5 w-3.5 animate-spin" /> carregando…
-                            </>
-                          ) : au?.url ? (
-                            <>
-                              <X className="h-3.5 w-3.5" /> Ocultar
-                            </>
-                          ) : (
-                            <>
-                              <Volume2 className="h-3.5 w-3.5" /> Ouvir
-                            </>
-                          )}
-                        </button>
-                      )}
-                      {!audit.auditable && audit.reason !== "sem gravação" && (
-                        <span
-                          className="flex-shrink-0 text-xs text-warning-foreground"
-                          title="Ligação não auditável — não pode ser selecionada"
-                        >
-                          {audit.reason}
-                        </span>
-                      )}
-                      <ItemBadge recorded={c.recorded} state={st} />
-                    </div>
-                    {au?.error && (
-                      <p className="mt-2 text-xs text-destructive">{au.error}</p>
-                    )}
-                    {au?.url && (
-                      // eslint-disable-next-line jsx-a11y/media-has-caption
-                      <audio src={au.url} controls autoPlay className="mt-2 h-9 w-full" />
-                    )}
-                  </div>
-                );
-                })}
-              </div>
-            )}
+            <Tabs defaultValue="eligible" className="space-y-3">
+              <TabsList>
+                <TabsTrigger value="eligible">Elegíveis ({auditable.length})</TabsTrigger>
+                <TabsTrigger value="ineligible">
+                  Não elegíveis ({ineligible.length})
+                </TabsTrigger>
+              </TabsList>
+
+              <TabsContent value="eligible" className="mt-0">
+                {auditable.length === 0 ? (
+                  <p className="py-8 text-center text-sm text-muted-foreground">
+                    Nenhuma gravação elegível para esse filtro.
+                  </p>
+                ) : (
+                  <div className="divide-y rounded-md border">{auditable.map(renderCall)}</div>
+                )}
+              </TabsContent>
+
+              <TabsContent value="ineligible" className="mt-0 space-y-3">
+                <p className="text-xs text-muted-foreground">
+                  Gravações que <strong>reprovaram nas regras de elegibilidade</strong> de mercado
+                  e, por isso, <strong>não são auditadas</strong>. Listadas apenas para consulta do
+                  motivo da reprovação.
+                </p>
+                {ineligible.length === 0 ? (
+                  <p className="py-8 text-center text-sm text-muted-foreground">
+                    Nenhuma gravação inelegível para esse filtro.
+                  </p>
+                ) : (
+                  <div className="divide-y rounded-md border">{ineligible.map(renderCall)}</div>
+                )}
+              </TabsContent>
+            </Tabs>
           </CardContent>
         </Card>
       )}

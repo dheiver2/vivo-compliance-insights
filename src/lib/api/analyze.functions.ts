@@ -660,6 +660,7 @@ export const analyzeCall = createServerFn({ method: "POST" })
       transcript: buildAuditSummary(analysis),
       topicSource: transcript,
       agentName: data.agentName,
+      durationSec: estimateDurationSec(transcript),
     });
     return { ...analysis, id: stored.id, protocol: stored.protocol };
   });
@@ -840,6 +841,7 @@ export const analyzeCallFromUrl = createServerFn({ method: "POST" })
       transcript: auditSummary,
       topicSource: transcript,
       agentName: data.agentName,
+      durationSec: estimateDurationSec(transcript),
     });
 
     return {
@@ -886,6 +888,7 @@ export const analyzeAudio = createServerFn({ method: "POST" })
       transcript: auditSummary,
       topicSource: transcript,
       agentName: data.agentName,
+      durationSec: estimateDurationSec(transcript),
     });
 
     return {
@@ -1127,6 +1130,16 @@ function reportDurationSec(r: ThreeCplusReport): number | undefined {
   return undefined;
 }
 
+// Estima a duração da ligação (segundos) pela contagem de palavras da transcrição
+// COMPLETA, disponível no momento da análise (antes de virar resumo). Garante que
+// TODA ligação tenha um tempo não-zero quando a origem não informa a duração real.
+// ~130 wpm (ritmo conversacional). É a base dos indicadores operacionais quando
+// não há duração da 3C Plus.
+function estimateDurationSec(transcript: string): number {
+  const words = transcript.trim().split(/\s+/).filter(Boolean).length;
+  return words > 0 ? Math.round((words / 130) * 60) : 0;
+}
+
 function toThreeCplusCall(r: ThreeCplusReport): ThreeCplusCall {
   return {
     id: String(r.id ?? r.sid ?? ""),
@@ -1257,7 +1270,7 @@ export const analyzeThreeCplusCall = createServerFn({ method: "POST" })
       agentName,
       sourceCallId: downloadId,
       callDate: report?.call_date_rfc3339 || report?.call_date,
-      durationSec: report ? reportDurationSec(report) : undefined,
+      durationSec: (report && reportDurationSec(report)) || estimateDurationSec(topicSource),
     });
 
     return {
@@ -1544,7 +1557,7 @@ export const ingestThreeCplusBatch = createServerFn({ method: "POST" })
           agentName: r.agent || undefined,
           sourceCallId: callId,
           callDate: r.call_date_rfc3339 || r.call_date,
-          durationSec: reportDurationSec(r),
+          durationSec: reportDurationSec(r) || estimateDurationSec(transcript),
         });
         ingested++;
       } catch (error) {

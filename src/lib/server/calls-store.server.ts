@@ -653,14 +653,17 @@ function speakerStats(transcript: string): {
 // Converte palavras em segundos de fala estimados (ritmo conversacional médio).
 const wordsToSec = (words: number) => Math.round((words / SPEECH_WPM) * 60);
 
-// Duração (segundos) de uma ligação: usa a duração REAL da origem (3C Plus) e,
-// na ausência, ESTIMA pela contagem de palavras do diálogo (seed/demo com
-// transcrição completa). Retorna 0 quando não há nenhum sinal de tempo.
+// Duração (segundos) de uma ligação: usa a duração REAL da origem (3C Plus / a
+// duração estimada gravada na ingestão) e, na ausência, ESTIMA pela contagem de
+// palavras — primeiro do diálogo com locutores, senão do texto inteiro (ex.:
+// registros antigos que só guardaram o resumo). Retorna 0 só se não houver texto.
 function callDurationSec(c: StoredCall): number {
   if (c.durationSec && c.durationSec > 0) return c.durationSec;
   const { agentWords, clientWords } = speakerStats(c.transcript);
-  const total = agentWords + clientWords;
-  return total > 0 ? wordsToSec(total) : 0;
+  const dialogue = agentWords + clientWords;
+  if (dialogue > 0) return wordsToSec(dialogue);
+  const words = (c.transcript || "").trim().split(/\s+/).filter(Boolean).length;
+  return words > 0 ? wordsToSec(words) : 0;
 }
 
 // Mediana de uma lista numérica (0 se vazia).

@@ -1,11 +1,12 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Progress } from "@/components/ui/progress";
 import { StatusBadge } from "@/components/StatusBadge";
 import { getDashboard } from "@/lib/api/calls.functions";
+import { reprocessCalls } from "@/lib/api/analyze.functions";
 import { RefreshButton } from "@/components/RefreshButton";
 import { mangabaModelName } from "@/lib/mangaba";
 import type { DashboardData, TrendGranularity } from "@/lib/server/calls-store.server";
@@ -193,6 +194,20 @@ function Dashboard() {
     // refletindo automaticamente cada nova ligação auditada pelos motores.
     refetchInterval: 15_000,
   });
+
+  // Auto-reparo: se há ligações mas TODOS os itens do scorecard estão zerados, é
+  // sinal de que foram auditadas sob uma norma anterior (labels divergentes da
+  // ficha vigente). Reprocessa uma única vez, sozinho, e recarrega os números —
+  // sem nenhuma ação humana. Guard por ref evita repetição.
+  const healedRef = useRef(false);
+  useEffect(() => {
+    if (healedRef.current || !data || data.totalCalls === 0) return;
+    const items = data.complianceItems;
+    const allZero = items.length > 0 && items.every((i) => i.score === 0);
+    if (!allZero) return;
+    healedRef.current = true;
+    reprocessCalls().then(() => refetch());
+  }, [data, refetch]);
 
   const gMeta = GRANULARITY_OPTIONS.find((o) => o.value === granularity)!;
 

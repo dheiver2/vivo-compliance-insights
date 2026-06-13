@@ -3,7 +3,6 @@ import {
   LayoutDashboard,
   Phone,
   Settings,
-  Headphones,
   Users,
   GraduationCap,
   ClipboardCheck,
@@ -46,15 +45,15 @@ export function AppSidebar() {
       <SidebarHeader className="border-b border-sidebar-border">
         <Link to="/" className="flex items-center gap-2 px-2 py-3">
           <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-[image:var(--gradient-primary)] shadow-[var(--shadow-glow)]">
-            <Headphones className="h-5 w-5 text-primary-foreground" />
+            <AudioLines className="h-5 w-5 text-primary-foreground" />
           </div>
           {!collapsed && (
             <div className="flex flex-col gap-1">
               <span className="font-display font-bold text-sidebar-foreground leading-none">
-                VoiceAudit
+                Escutta
               </span>
               <span className="flex items-center gap-1 text-[10px] uppercase tracking-wider text-sidebar-foreground/60">
-                por <VivoLogo className="h-2.5 text-sidebar-foreground/80" /> · Compliance
+                por <VivoLogo className="h-2.5 text-sidebar-foreground/80" /> · Monitoria de voz
               </span>
             </div>
           )}

@@ -5,7 +5,7 @@ import { ScorecardManager } from "@/components/ScorecardManager";
 export const Route = createFileRoute("/scorecards")({
   head: () => ({
     meta: [
-      { title: "Scorecards · VoiceAudit" },
+      { title: "Scorecards · Escutta" },
       {
         name: "description",
         content:

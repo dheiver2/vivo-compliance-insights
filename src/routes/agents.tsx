@@ -10,7 +10,7 @@ import { Bot, CheckCircle2, Activity, Loader2, Sparkles } from "lucide-react";
 export const Route = createFileRoute("/agents")({
   head: () => ({
     meta: [
-      { title: "Agentes IA · VoiceAudit" },
+      { title: "Agentes IA · Escutta" },
       { name: "description", content: "Agentes de IA de compliance e qualidade." },
     ],
   }),

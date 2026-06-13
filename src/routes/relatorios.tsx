@@ -11,7 +11,7 @@ import { toast } from "sonner";
 export const Route = createFileRoute("/relatorios")({
   head: () => ({
     meta: [
-      { title: "Relatórios · VoiceAudit" },
+      { title: "Relatórios · Escutta" },
       {
         name: "description",
         content: "Exporte as ligações auditadas e o resumo de compliance em CSV.",

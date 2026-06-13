@@ -53,7 +53,7 @@ import {
 export const Route = createFileRoute("/dashboard")({
   head: () => ({
     meta: [
-      { title: "Dashboard · VoiceAudit Vivo" },
+      { title: "Dashboard · Escutta Vivo" },
       {
         name: "description",
         content: "Visão geral de compliance e qualidade de ligações da Vivo.",

@@ -37,7 +37,7 @@ import {
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/settings")({
-  head: () => ({ meta: [{ title: "Configurações · VoiceAudit" }] }),
+  head: () => ({ meta: [{ title: "Configurações · Escutta" }] }),
   component: SettingsPage,
 });
 

@@ -7,7 +7,7 @@ import type { StoredCall } from "@/lib/server/calls-store.server";
 import { ArrowLeft, Loader2, Search } from "lucide-react";
 
 export const Route = createFileRoute("/calls/$callId")({
-  head: () => ({ meta: [{ title: "Detalhe da ligação · VoiceAudit" }] }),
+  head: () => ({ meta: [{ title: "Detalhe da ligação · Escutta" }] }),
   component: CallDetailPage,
 });
 

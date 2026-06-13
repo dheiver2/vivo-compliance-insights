@@ -26,7 +26,7 @@ import {
 } from "lucide-react";
 
 export const Route = createFileRoute("/team/$agentName")({
-  head: () => ({ meta: [{ title: "Perfil do atendente · VoiceAudit" }] }),
+  head: () => ({ meta: [{ title: "Perfil do atendente · Escutta" }] }),
   component: AgentDetailPage,
 });
 

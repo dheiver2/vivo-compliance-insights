@@ -1,6 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import {
-  Headphones,
+  AudioLines,
   Sparkles,
   ShieldCheck,
   Bot,
@@ -24,11 +24,11 @@ type LandingStats = { value: string; label: string }[];
 export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
-      { title: "VoiceAudit · Auditoria de Ligações com IA · Vivo" },
+      { title: "Escutta · A IA que ouve 100% das ligações · Vivo" },
       {
         name: "description",
         content:
-          "Plataforma de compliance e qualidade de ligações com agentes de IA. Audite 100% das chamadas em tempo real.",
+          "Escutta é a plataforma de monitoria de voz com IA da Vivo: audita 100% das ligações de vendas e atendimento — compliance, qualidade e sentimento em segundos. Escuta ativa que vira performance.",
       },
     ],
   }),
@@ -117,14 +117,14 @@ function Landing() {
       {/* Nav */}
       <header className="sticky top-0 z-40 border-b border-border/60 bg-background/80 backdrop-blur-md">
         <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-4">
-          <div className="flex items-center gap-2">
-            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-[image:var(--gradient-primary)] shadow-[var(--shadow-glow)]">
-              <Headphones className="h-5 w-5 text-primary-foreground" />
+          <div className="flex items-center gap-2.5">
+            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-[image:var(--gradient-primary)] shadow-[var(--shadow-glow)]">
+              <AudioLines className="h-5 w-5 text-primary-foreground" />
             </div>
             <div className="leading-tight">
-              <div className="font-display font-bold">VoiceAudit</div>
+              <div className="font-display text-lg font-bold tracking-tight">Escutta</div>
               <div className="flex items-center gap-1 text-[10px] uppercase tracking-wider text-muted-foreground">
-                por <VivoLogo className="h-2.5 text-primary" /> · Compliance
+                por <VivoLogo className="h-2.5 text-primary" /> · Monitoria de voz
               </div>
             </div>
           </div>
@@ -159,26 +159,33 @@ function Landing() {
         <div className="absolute -top-24 -right-24 h-96 w-96 rounded-full bg-primary-glow/30 blur-3xl" />
         <div className="absolute -bottom-32 -left-24 h-96 w-96 rounded-full bg-primary/20 blur-3xl" />
         <div className="relative mx-auto max-w-6xl px-4 py-24 text-center md:py-32">
-          <div className="mx-auto mb-8 flex flex-col items-center gap-3">
-            <VivoLogo className="h-16 w-auto text-white drop-shadow-[0_0_30px_rgba(255,255,255,0.35)] md:h-24" />
+          <div className="mx-auto mb-8 flex flex-col items-center gap-4">
+            <div className="flex items-center gap-3">
+              <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-white/10 ring-1 ring-white/20 backdrop-blur md:h-20 md:w-20">
+                <AudioLines className="h-8 w-8 text-white md:h-10 md:w-10" />
+              </div>
+              <span className="font-display text-5xl font-bold tracking-tight text-white drop-shadow-[0_0_30px_rgba(168,85,247,0.45)] md:text-7xl">
+                Escutta
+              </span>
+            </div>
             <span className="text-[11px] font-semibold uppercase tracking-[0.35em] text-white/60">
-              Compliance &amp; Qualidade
+              Escuta ativa que vira performance
             </span>
           </div>
           <div className="mx-auto mb-6 inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/5 px-4 py-1.5 text-xs font-medium text-white/80 backdrop-blur">
             <Sparkles className="h-3.5 w-3.5" /> Powered by Mangaba AI · LLMs de última geração
           </div>
           <h1 className="mx-auto max-w-3xl font-display text-4xl font-bold leading-tight text-white md:text-6xl">
-            Audite{" "}
+            A IA que{" "}
             <span className="bg-gradient-to-r from-white to-primary-glow bg-clip-text text-transparent">
-              100% das ligações
+              ouve 100% das ligações
             </span>{" "}
-            com inteligência artificial
+            por você
           </h1>
           <p className="mx-auto mt-6 max-w-2xl text-base text-white/70 md:text-lg">
-            A plataforma de compliance e qualidade da Vivo que transforma cada chamada em insights
-            acionáveis — scores regulatórios, qualidade do atendimento e sentimento do cliente, em
-            segundos.
+            A Escutta audita cada chamada de vendas e atendimento da sua operação — compliance,
+            qualidade do atendimento e sentimento do cliente, em segundos. Nada de amostragem: 100%
+            das ligações, com um parecer claro.
           </p>
           <div className="mt-9 flex flex-wrap items-center justify-center gap-3">
             <Link
@@ -340,10 +347,10 @@ function Landing() {
             </div>
             <div className="mt-4 space-y-2 text-sm">
               {[
-                { label: "Identificação do atendente", ok: true },
-                { label: "Gravação informada ao cliente", ok: false },
-                { label: "Consentimento LGPD", ok: false },
-                { label: "Resumo final e protocolo", ok: true },
+                { label: "Saudação e identificação (Vivo)", ok: true },
+                { label: "Sondagem do cliente", ok: false },
+                { label: "Fechamento da venda (obrigatórios)", ok: false },
+                { label: "Finalização padrão da ligação", ok: true },
               ].map((c) => (
                 <div
                   key={c.label}
@@ -394,9 +401,9 @@ function Landing() {
         <div className="mx-auto flex max-w-6xl flex-col items-center justify-between gap-4 px-4 py-8 text-sm text-muted-foreground sm:flex-row">
           <div className="flex items-center gap-2">
             <div className="flex h-7 w-7 items-center justify-center rounded-md bg-[image:var(--gradient-primary)]">
-              <Headphones className="h-4 w-4 text-primary-foreground" />
+              <AudioLines className="h-4 w-4 text-primary-foreground" />
             </div>
-            <span className="font-display font-semibold text-foreground">VoiceAudit</span>
+            <span className="font-display font-semibold text-foreground">Escutta</span>
             <span className="flex items-center gap-1">
               · uma solução <VivoLogo className="h-3 text-primary" />
             </span>

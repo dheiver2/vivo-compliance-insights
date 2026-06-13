@@ -49,7 +49,7 @@ export const Route = createFileRoute("/calls/")({
   }),
   head: () => ({
     meta: [
-      { title: "Ligações · VoiceAudit" },
+      { title: "Ligações · Escutta" },
       { name: "description", content: "Todas as ligações auditadas." },
     ],
   }),

@@ -19,7 +19,7 @@ import {
 export const Route = createFileRoute("/team/")({
   head: () => ({
     meta: [
-      { title: "Equipe · VoiceAudit" },
+      { title: "Equipe · Escutta" },
       { name: "description", content: "Desempenho de compliance e qualidade por atendente." },
     ],
   }),

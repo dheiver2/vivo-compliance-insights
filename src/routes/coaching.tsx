@@ -18,7 +18,7 @@ import {
 export const Route = createFileRoute("/coaching")({
   head: () => ({
     meta: [
-      { title: "Coaching · VoiceAudit" },
+      { title: "Coaching · Escutta" },
       {
         name: "description",
         content:

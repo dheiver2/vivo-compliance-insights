@@ -51,7 +51,7 @@ import { toast } from "sonner";
 export const Route = createFileRoute("/audios")({
   head: () => ({
     meta: [
-      { title: "Áudios · VoiceAudit" },
+      { title: "Áudios · Escutta" },
       {
         name: "description",
         content:

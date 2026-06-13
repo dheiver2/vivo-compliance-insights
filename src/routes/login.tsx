@@ -1,13 +1,13 @@
 import { useState } from "react";
 import { createFileRoute, redirect, useNavigate, useRouter } from "@tanstack/react-router";
-import { Headphones, Lock, Loader2, ArrowRight, ShieldCheck } from "lucide-react";
+import { AudioLines, Lock, Loader2, ArrowRight, ShieldCheck } from "lucide-react";
 import { VivoLogo } from "@/components/VivoLogo";
 import { AvanttiLogo } from "@/components/AvanttiLogo";
 import { getAuthStatus, login } from "@/lib/api/auth.functions";
 
 export const Route = createFileRoute("/login")({
   head: () => ({
-    meta: [{ title: "Entrar · VoiceAudit" }],
+    meta: [{ title: "Entrar · Escutta" }],
   }),
   validateSearch: (search: Record<string, unknown>): { redirect?: string } => ({
     redirect: typeof search.redirect === "string" ? search.redirect : undefined,
@@ -60,10 +60,10 @@ function LoginPage() {
       <div className="relative w-full max-w-sm">
         <div className="mb-8 flex flex-col items-center gap-3 text-center">
           <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-[image:var(--gradient-primary)] shadow-[var(--shadow-glow)]">
-            <Headphones className="h-6 w-6 text-primary-foreground" />
+            <AudioLines className="h-6 w-6 text-primary-foreground" />
           </div>
           <div>
-            <div className="font-display text-xl font-bold text-white">VoiceAudit</div>
+            <div className="font-display text-xl font-bold text-white">Escutta</div>
             <div className="mt-1 flex items-center justify-center gap-1 text-[10px] uppercase tracking-[0.3em] text-white/60">
               por <VivoLogo className="h-2.5 text-white" /> · Compliance
             </div>

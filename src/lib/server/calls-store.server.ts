@@ -469,6 +469,18 @@ export async function clearCalls(): Promise<void> {
   await persist();
 }
 
+// Substitui TODO o acervo por uma lista pronta (usado pela semeadura de
+// demonstração). Aplica a retenção e persiste no backend (KV em produção).
+export async function replaceAllCalls(calls: StoredCall[]): Promise<number> {
+  await ensureLoaded();
+  store.length = 0;
+  store.push(...calls.map((c) => ({ ...c, agentName: normalizeAgentName(c.agentName) })));
+  seq = store.length + 1;
+  pruneByRetention();
+  await persist();
+  return store.length;
+}
+
 // ----------------------------------------------------------------------------
 // Agregações do Dashboard — todas derivadas das análises reais armazenadas.
 // ----------------------------------------------------------------------------

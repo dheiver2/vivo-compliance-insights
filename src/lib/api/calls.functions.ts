@@ -11,6 +11,7 @@ import {
   listCalls as listStoredCalls,
 } from "../server/calls-store.server";
 import { requireAuth } from "../server/auth.server";
+import { seedDemoCalls } from "../server/demo-seed.server";
 
 // Server fns de leitura. O store é server-only (.server.ts) e fica de fora do
 // bundle do cliente — aqui só expomos os dados agregados/serializáveis. Todas
@@ -80,5 +81,15 @@ export const clearCalls = createServerFn({ method: "POST" }).handler(
     requireAuth();
     await clearStoredCalls();
     return { ok: true };
+  },
+);
+
+// Popula a plataforma com dados de DEMONSTRAÇÃO (hoje + ontem). Protegido por
+// sessão (requireAuth) — substitui o acervo atual pelos dados de exemplo.
+export const seedDemo = createServerFn({ method: "POST" }).handler(
+  async (): Promise<{ ok: true; count: number }> => {
+    requireAuth();
+    const count = await seedDemoCalls();
+    return { ok: true, count };
   },
 );

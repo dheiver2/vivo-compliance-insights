@@ -16,7 +16,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { getSystemStatus, clearCalls, type SystemStatus } from "@/lib/api/calls.functions";
+import { getSystemStatus, clearCalls, seedDemo, type SystemStatus } from "@/lib/api/calls.functions";
 import { ingestThreeCplusBatch } from "@/lib/api/analyze.functions";
 import { mangabaModelName } from "@/lib/mangaba";
 import {
@@ -229,6 +229,17 @@ function SettingsPage() {
     onError: (e) => toast.error(e instanceof Error ? e.message : "Falha ao limpar dados."),
   });
 
+  const [seedOpen, setSeedOpen] = useState(false);
+  const seed = useMutation({
+    mutationFn: () => seedDemo(),
+    onSuccess: async (r) => {
+      setSeedOpen(false);
+      await qc.invalidateQueries();
+      toast.success(`Plataforma populada com ${r.count} ligações de demonstração (hoje e ontem).`);
+    },
+    onError: (e) => toast.error(e instanceof Error ? e.message : "Falha ao popular dados."),
+  });
+
   return (
     <div className="space-y-6 max-w-[900px] mx-auto">
       <header>
@@ -309,6 +320,43 @@ function SettingsPage() {
                 label="Total de análises"
                 value={String(data.totalCalls)}
               />
+              <div className="flex items-center justify-between gap-4 pt-4 border-b pb-4">
+                <p className="text-sm text-muted-foreground">
+                  Popula a plataforma com ligações de <strong>demonstração</strong> de hoje e ontem
+                  (substitui o acervo atual). Útil para apresentação.
+                </p>
+                <AlertDialog open={seedOpen} onOpenChange={setSeedOpen}>
+                  <AlertDialogTrigger asChild>
+                    <Button variant="outline" size="sm">
+                      <Database className="h-4 w-4 mr-2" /> Popular demonstração
+                    </Button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>Popular com dados de demonstração?</AlertDialogTitle>
+                      <AlertDialogDescription>
+                        Substitui as {data.totalCalls} análise(s) atuais por ~19 ligações de
+                        exemplo datadas de hoje e ontem. Use “Limpar dados” para remover depois.
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                      <AlertDialogAction
+                        onClick={(e) => {
+                          e.preventDefault();
+                          seed.mutate();
+                        }}
+                      >
+                        {seed.isPending ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          "Sim, popular"
+                        )}
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
+              </div>
               <div className="flex items-center justify-between gap-4 pt-4">
                 <p className="text-sm text-muted-foreground">
                   Remove permanentemente todas as ligações auditadas.

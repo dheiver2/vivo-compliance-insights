@@ -22,7 +22,21 @@ if (typeof window !== "undefined") {
 }
 
 export const getRouter = () => {
-  const queryClient = new QueryClient();
+  // Plataforma autônoma: todas as telas que leem dados se atualizam sozinhas.
+  // - refetchInterval: re-busca periódica (números acompanham novas ligações sem
+  //   ação humana). Não roda com a aba em segundo plano para poupar recursos.
+  // - refetchOnWindowFocus/Reconnect: revalida ao voltar à aba ou reconectar.
+  const queryClient = new QueryClient({
+    defaultOptions: {
+      queries: {
+        refetchInterval: 30_000,
+        refetchIntervalInBackground: false,
+        refetchOnWindowFocus: true,
+        refetchOnReconnect: true,
+        staleTime: 15_000,
+      },
+    },
+  });
 
   const router = createRouter({
     routeTree,

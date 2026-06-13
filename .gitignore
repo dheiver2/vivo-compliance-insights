@@ -39,3 +39,16 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Configuração local de dev (agente/IDE e MCP da máquina)
+.claude/
+.mcp.json
+
+# Artefatos gerados (apresentações de vendas, capturas) — produzidos por scripts/
+screenshots/
+*.pdf
+*.pptx
+*.rar
+
+# Notas/rascunhos locais (não fazem parte da aplicação)
+transcricao-nvidia-computex-2026.md

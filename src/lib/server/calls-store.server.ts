@@ -241,6 +241,9 @@ async function loadFromBackend(api: StorageBackend): Promise<void> {
   } catch {
     /* blob corrompido — mantém o que houver em memória */
   }
+  // Aplica a retenção (hoje + ontem). Se algo foi descartado, regrava o backend
+  // para que o histórico antigo não volte na próxima leitura.
+  if (pruneByRetention() > 0) await persist();
 }
 
 function ensureLoaded(): Promise<void> {
@@ -359,6 +362,7 @@ export async function recordAnalysis(input: {
     if (dupIdx >= 0) store.splice(dupIdx, 1);
   }
   store.unshift(record); // mais recente primeiro
+  pruneByRetention(); // mantém só hoje + ontem
   await persist();
   return record;
 }
@@ -519,6 +523,23 @@ const avg = (nums: number[]) =>
   nums.length ? Math.round(nums.reduce((a, b) => a + b, 0) / nums.length) : 0;
 
 const DAY_MS = 24 * 60 * 60 * 1000;
+
+// Retenção: a plataforma mantém SOMENTE hoje e ontem (janela móvel de 48h).
+// Ligações mais antigas são descartadas automaticamente — o acervo é um
+// rolling window, não um histórico de longo prazo.
+const RETENTION_MS = 2 * DAY_MS;
+
+// Remove do store as ligações fora da janela de retenção. Retorna quantas saíram.
+function pruneByRetention(): number {
+  const cutoff = Date.now() - RETENTION_MS;
+  const kept = store.filter((c) => new Date(c.createdAt).getTime() >= cutoff);
+  const removed = store.length - kept.length;
+  if (removed > 0) {
+    store.length = 0;
+    store.push(...kept);
+  }
+  return removed;
+}
 
 function delta(current: number, previous: number): number | null {
   if (previous === 0) return null;

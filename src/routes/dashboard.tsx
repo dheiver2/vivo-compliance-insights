@@ -113,7 +113,7 @@ function KpiCard({
                   <TrendingDown className="h-3 w-3" />
                 )}
                 {up ? "+" : ""}
-                {delta}% vs 7 dias anteriores
+                {delta}% vs dia anterior
               </div>
             )}
           </div>

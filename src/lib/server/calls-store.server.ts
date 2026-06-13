@@ -464,7 +464,7 @@ export async function clearCalls(): Promise<void> {
 
 export interface KpiValue {
   value: number;
-  delta: number | null; // % vs janela de 7 dias anterior; null = sem base
+  delta: number | null; // % vs dia anterior (24-48h); null = sem base
 }
 
 export interface DashboardData {
@@ -711,18 +711,19 @@ export async function getDashboardData(
   await ensureLoaded();
   const all = store;
   const now = Date.now();
-  const last7 = all.filter((c) => now - new Date(c.createdAt).getTime() <= 7 * DAY_MS);
-  const prev7 = all.filter((c) => {
+  // Comparativo dos indicadores: HOJE (últimas 24h) vs DIA ANTERIOR (24-48h).
+  const today = all.filter((c) => now - new Date(c.createdAt).getTime() <= DAY_MS);
+  const yesterday = all.filter((c) => {
     const age = now - new Date(c.createdAt).getTime();
-    return age > 7 * DAY_MS && age <= 14 * DAY_MS;
+    return age > DAY_MS && age <= 2 * DAY_MS;
   });
 
-  const compCur = avg(last7.map((c) => c.scoreCompliance));
-  const compPrev = avg(prev7.map((c) => c.scoreCompliance));
-  const qualCur = avg(last7.map((c) => c.scoreQuality));
-  const qualPrev = avg(prev7.map((c) => c.scoreQuality));
-  const critCur = last7.filter((c) => c.status === "critical").length;
-  const critPrev = prev7.filter((c) => c.status === "critical").length;
+  const compCur = avg(today.map((c) => c.scoreCompliance));
+  const compPrev = avg(yesterday.map((c) => c.scoreCompliance));
+  const qualCur = avg(today.map((c) => c.scoreQuality));
+  const qualPrev = avg(yesterday.map((c) => c.scoreQuality));
+  const critCur = today.filter((c) => c.status === "critical").length;
+  const critPrev = yesterday.filter((c) => c.status === "critical").length;
 
   // Percentual de uma lista que satisfaz um predicado (0-100, arredondado).
   const rate = (list: StoredCall[], pred: (c: StoredCall) => boolean) =>
@@ -732,14 +733,14 @@ export async function getDashboardData(
   const isAi = (c: StoredCall) => c.source === "huggingface";
   const distinctAgents = (list: StoredCall[]) => new Set(list.map((c) => c.agentName)).size;
 
-  const approvalCur = rate(last7, isApproved);
-  const approvalPrev = rate(prev7, isApproved);
-  const positiveCur = rate(last7, isPositive);
-  const positivePrev = rate(prev7, isPositive);
-  const aiCur = rate(last7, isAi);
-  const aiPrev = rate(prev7, isAi);
-  const agentsCur = distinctAgents(last7);
-  const agentsPrev = distinctAgents(prev7);
+  const approvalCur = rate(today, isApproved);
+  const approvalPrev = rate(yesterday, isApproved);
+  const positiveCur = rate(today, isPositive);
+  const positivePrev = rate(yesterday, isPositive);
+  const aiCur = rate(today, isAi);
+  const aiPrev = rate(yesterday, isAi);
+  const agentsCur = distinctAgents(today);
+  const agentsPrev = distinctAgents(yesterday);
 
   // Rótulos da Ficha de Monitoria vigente (definida pelo analista).
   const checklistLabels = await getActiveChecklistLabels();
@@ -803,16 +804,16 @@ export async function getDashboardData(
   // janela e reaproveitados (FCR vai para a Visão geral; cancelamento, para o
   // Comercial).
   const ccAll = computeCallCenter(all);
-  const ccCur = computeCallCenter(last7);
-  const ccPrev = computeCallCenter(prev7);
+  const ccCur = computeCallCenter(today);
+  const ccPrev = computeCallCenter(yesterday);
   const sAll = computeSales(all);
-  const sCur = computeSales(last7);
-  const sPrev = computeSales(prev7);
+  const sCur = computeSales(today);
+  const sPrev = computeSales(yesterday);
 
   return {
     totalCalls: all.length,
     kpis: {
-      totalCalls: { value: all.length, delta: delta(last7.length, prev7.length) },
+      totalCalls: { value: all.length, delta: delta(today.length, yesterday.length) },
       avgCompliance: {
         value: avg(all.map((c) => c.scoreCompliance)),
         delta: delta(compCur, compPrev),

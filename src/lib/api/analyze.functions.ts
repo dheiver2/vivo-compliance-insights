@@ -195,37 +195,45 @@ async function analyzeWithHuggingFace(
 // Regras de palavra-chave por rótulo CANÔNICO da ficha padrão. Critérios
 // personalizados (sem regra) recebem uma verificação neutra no modo local.
 const HEURISTIC_RULES: Record<string, { terms: string[]; evidence: string }> = {
-  "Identificação do atendente": {
-    terms: ["aqui é", "meu nome", "falo com", "atendente"],
-    evidence: "Procura por apresentação do atendente.",
+  "Prontidão ao atender": {
+    terms: ["vivo", "bom dia", "boa tarde", "boa noite", "aqui é", "em que posso", "falo com"],
+    evidence: "Procura por abertura imediata com identificação.",
   },
-  "Gravação informada ao cliente": {
-    terms: ["gravada", "gravação", "está sendo gravad"],
-    evidence: "Procura por aviso de gravação.",
+  "Saudação e identificação (nome + Vivo)": {
+    terms: ["aqui é", "meu nome", "vivo", "vivo empresas", "quem fala"],
+    evidence: "Procura por nome do vendedor + empresa (Vivo).",
   },
-  "Confirmação de dados cadastrais": {
-    terms: ["cpf", "confirma seu", "data de nascimento", "dados cadastrais"],
-    evidence: "Procura por confirmação cadastral.",
+  "Personalização da ligação": {
+    terms: ["senhor", "senhora", "sr.", "sra.", "você"],
+    evidence: "Procura por tratamento do cliente pelo nome.",
   },
-  "Consentimento LGPD para uso de dados": {
-    terms: ["lgpd", "consentimento", "uso dos seus dados", "autoriza"],
-    evidence: "Procura por consentimento LGPD.",
+  "Sondagem do cliente": {
+    terms: ["quanto paga", "quantas linhas", "linhas", "banda larga", "internet", "dados", "móvel"],
+    evidence: "Procura por sondagem do cenário do cliente.",
   },
-  "Oferta clara de produto/serviço": {
-    terms: ["plano", "oferta", "produto", "serviço", "r$"],
-    evidence: "Procura por oferta clara.",
+  "Escuta ativa (não interromper o cliente)": {
+    terms: ["compreendo", "entendi", "entendo", "claro", "perfeito"],
+    evidence: "Procura por sinais de escuta sem interrupção.",
   },
-  "Comunicação de prazos e custos": {
-    terms: ["prazo", "multa", "custo", "valor", "r$", "48 horas"],
-    evidence: "Procura por prazos e custos.",
+  "Objetividade e abordagem do responsável": {
+    terms: ["responsável", "agendar", "agendamento", "whatsapp", "retorno", "contato"],
+    evidence: "Procura por abordagem do responsável/agendamento.",
   },
-  "Resumo final e número de protocolo": {
-    terms: ["protocolo", "resumo", "vv-"],
-    evidence: "Procura por protocolo/resumo final.",
+  "Estratégia de venda e argumentação": {
+    terms: ["oferta", "plano", "produto", "benefício", "promo", "argument", "desconto", "vantagem"],
+    evidence: "Procura por argumentação de venda.",
   },
-  "Encerramento cordial": {
-    terms: ["bom dia", "boa tarde", "tenha um", "obrigad", "mais alguma coisa"],
-    evidence: "Procura por encerramento cordial.",
+  "Fechamento da venda (informações obrigatórias)": {
+    terms: ["fidelização", "fidelidade", "24 meses", "valor", "chip", "mensalidade", "r$"],
+    evidence: "Procura por informações obrigatórias do fechamento.",
+  },
+  "Finalização padrão da ligação": {
+    terms: ["obrigad", "agradeço", "tenha um", "bom dia", "boa tarde", "ótima"],
+    evidence: "Procura por finalização padrão agradecendo.",
+  },
+  "Tabulação administrativa correta": {
+    terms: ["tabul", "registr", "sistema"],
+    evidence: "Procura por registro/tabulação da ligação.",
   },
 };
 

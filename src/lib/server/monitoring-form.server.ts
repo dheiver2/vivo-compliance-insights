@@ -23,52 +23,72 @@ export interface MonitoringCriterion {
 // Ficha padrão derivada da checklist regulatória base. É o ponto de partida e o
 // alvo do "Restaurar padrão".
 function defaultForm(): MonitoringCriterion[] {
+  // Metadados da norma de vendas Vivo Empresas (scorecard "COM VENDA", 100 pts).
+  // O peso em pontos oficial da ficha está na descrição; o `weight` 1-5 é a
+  // importância relativa usada na média ponderada de compliance.
   const meta: Record<string, Omit<MonitoringCriterion, "id" | "label" | "enabled">> = {
-    "Identificação do atendente": {
-      description: "O atendente se apresenta com nome e identifica a empresa no início da ligação.",
+    "Prontidão ao atender": {
+      description: "Identifica-se em até 5s ao atender, sem deixar o cliente esperando. (5 pts)",
       category: "Abertura",
-      weight: 4,
+      weight: 2,
       critical: false,
     },
-    "Gravação informada ao cliente": {
-      description: "O cliente é avisado de que a ligação está sendo gravada.",
-      category: "Conformidade legal",
-      weight: 5,
-      critical: true,
-    },
-    "Confirmação de dados cadastrais": {
-      description: "Confirmação de identidade do cliente (CPF, nome ou data de nascimento).",
-      category: "Segurança",
-      weight: 4,
+    "Saudação e identificação (nome + Vivo)": {
+      description: "Deixa claro o nome do vendedor e o nome da empresa (VIVO). (5 pts)",
+      category: "Abertura",
+      weight: 2,
       critical: false,
     },
-    "Consentimento LGPD para uso de dados": {
-      description: "O cliente consente explicitamente com o tratamento dos seus dados pessoais.",
-      category: "Conformidade legal",
-      weight: 5,
-      critical: true,
+    "Personalização da ligação": {
+      description: "Trata o cliente pelo nome ao longo do diálogo. (5 pts)",
+      category: "Relacionamento",
+      weight: 2,
+      critical: false,
     },
-    "Oferta clara de produto/serviço": {
-      description: "Ofertas apresentadas de forma clara, transparente e sem pressão indevida.",
-      category: "Negociação",
+    "Sondagem do cliente": {
+      description:
+        "Sonda o cenário: quanto paga no móvel, nº de linhas, benefícios de dados, interesse para familiares/funcionários e necessidade de banda larga (MEI/LTDA). (20 pts)",
+      category: "Sondagem",
+      weight: 5,
+      critical: false,
+    },
+    "Escuta ativa (não interromper o cliente)": {
+      description:
+        "Não fala ao mesmo tempo, não corta o cliente e não demonstra impaciência. (10 pts)",
+      category: "Postura",
       weight: 3,
-      critical: false,
-    },
-    "Comunicação de prazos e custos": {
-      description: "Prazos, valores, multas e fidelidade comunicados sem omissão.",
-      category: "Negociação",
-      weight: 4,
       critical: true,
     },
-    "Resumo final e número de protocolo": {
-      description: "Resumo do atendimento e fornecimento do número de protocolo ao cliente.",
-      category: "Encerramento",
+    "Objetividade e abordagem do responsável": {
+      description:
+        "Encontra/aborda o responsável; argumenta; em recusa tenta agendamento ou WhatsApp; busca o contato. (15 pts)",
+      category: "Condução",
       weight: 4,
       critical: false,
     },
-    "Encerramento cordial": {
-      description: "Despedida cordial e oferta de ajuda adicional antes de encerrar.",
+    "Estratégia de venda e argumentação": {
+      description:
+        "Argumenta sobre oferta/plano/produto e, diante de recusa, contra-argumenta reforçando os benefícios. (25 pts)",
+      category: "Argumentação",
+      weight: 5,
+      critical: false,
+    },
+    "Fechamento da venda (informações obrigatórias)": {
+      description:
+        "Aborda as informações obrigatórias: fidelização (24 meses), valor da oferta, valor do chip e plano/produto negociado. (10 pts)",
+      category: "Fechamento",
+      weight: 3,
+      critical: true,
+    },
+    "Finalização padrão da ligação": {
+      description: "Usa a finalização padrão do produto, agradecendo a atenção. (5 pts)",
       category: "Encerramento",
+      weight: 2,
+      critical: false,
+    },
+    "Tabulação administrativa correta": {
+      description: "Tabula a ligação corretamente no sistema após o atendimento.",
+      category: "Administrativo",
       weight: 2,
       critical: false,
     },

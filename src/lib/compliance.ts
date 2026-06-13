@@ -35,16 +35,21 @@ export interface CallAnalysis {
   model?: string;
 }
 
-// Itens regulatórios auditados em ligações da operadora (base da Ficha de Monitoria).
+// Norma principal da plataforma: Formulário de Monitoria de Vendas Vivo Empresas
+// (scorecard "COM VENDA", 100 pontos), aplicado às ligações ativas de venda para
+// clientes MEI/LTDA. Cada item é a base da Ficha de Monitoria — o peso oficial em
+// pontos da norma está indicado na descrição do critério (ver monitoring-form).
 export const COMPLIANCE_CHECKLIST = [
-  "Identificação do atendente",
-  "Gravação informada ao cliente",
-  "Confirmação de dados cadastrais",
-  "Consentimento LGPD para uso de dados",
-  "Oferta clara de produto/serviço",
-  "Comunicação de prazos e custos",
-  "Resumo final e número de protocolo",
-  "Encerramento cordial",
+  "Prontidão ao atender",
+  "Saudação e identificação (nome + Vivo)",
+  "Personalização da ligação",
+  "Sondagem do cliente",
+  "Escuta ativa (não interromper o cliente)",
+  "Objetividade e abordagem do responsável",
+  "Estratégia de venda e argumentação",
+  "Fechamento da venda (informações obrigatórias)",
+  "Finalização padrão da ligação",
+  "Tabulação administrativa correta",
 ] as const;
 
 // Faixas de classificação da ficha. Calibradas para refletir a monitoria real de
@@ -58,15 +63,18 @@ export function statusFromScore(score: number): "approved" | "warning" | "critic
   return "critical";
 }
 
-// Transcrição de exemplo para demonstração rápida do MVP.
-export const SAMPLE_TRANSCRIPT = `Atendente: Vivo, bom dia! Aqui é a Mariana. Em que posso ajudar?
-Cliente: Oi, eu quero cancelar minha linha, tô pagando caro demais.
-Atendente: Entendo. Antes de seguir, o senhor confirma seu CPF, por favor?
-Cliente: 123.456.789-00.
-Atendente: Obrigada. O senhor tem um plano de R$ 89,90 por mês. Se cancelar agora, há uma multa de fidelidade de R$ 150,00.
-Cliente: Multa? Ninguém me falou de multa quando contratei!
-Atendente: Sinto muito pelo transtorno. Posso oferecer um plano de R$ 59,90 que mantém a franquia de dados.
-Cliente: (irritado) Eu só quero cancelar, isso é um absurdo!
-Atendente: Compreendo sua frustração. Vou registrar o cancelamento. O protocolo é VV-882194 e o prazo de efetivação é de até 48 horas.
-Cliente: Tá bom então.
-Atendente: O cancelamento foi registrado. Mais alguma coisa? Tenha um bom dia.`;
+// Transcrição de exemplo (venda ativa Vivo Empresas para MEI/LTDA), alinhada à
+// norma de monitoria de vendas — usada para demonstração rápida do MVP.
+export const SAMPLE_TRANSCRIPT = `Atendente: Vivo Empresas, boa tarde! Aqui é o Rafael. Falo com o responsável pelas linhas da empresa?
+Cliente: Sou eu mesmo, o João, da padaria.
+Atendente: Que bom, senhor João! Me conta, hoje quanto o senhor paga no plano móvel da empresa?
+Cliente: Uns R$ 120 por mês.
+Atendente: Entendi. E quantas linhas o senhor usa hoje?
+Cliente: Três linhas.
+Atendente: Perfeito. O senhor usa bastante internet, dados móveis no dia a dia? E já pensou em colocar esse benefício também para os funcionários?
+Cliente: Olha, internet a gente usa muito, mas não sei se vale a pena trocar.
+Atendente: Compreendo, senhor João. Tenho uma oferta Vivo Empresas com mais dados pelo mesmo valor que o senhor já paga. Posso te explicar o plano?
+Cliente: Pode, mas tô meio sem tempo.
+Atendente: Bem rápido: são 3 linhas com franquia maior, fidelização de 24 meses, o valor da oferta fica em R$ 99,90, o chip sai sem custo e o plano inclui ligações ilimitadas.
+Cliente: Ah, assim ficou interessante. Pode fazer.
+Atendente: Fechado então! Vou registrar a contratação. Agradeço a atenção, senhor João, e tenha uma ótima tarde.`;

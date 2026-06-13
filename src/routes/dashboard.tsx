@@ -22,6 +22,16 @@ import {
   Users,
   Cpu,
   ArrowRight,
+  Clock,
+  Mic,
+  Repeat,
+  Target,
+  PhoneOff,
+  TrendingUp as TrendingUpIcon,
+  Search,
+  MessagesSquare,
+  Ear,
+  ClipboardCheck,
 } from "lucide-react";
 import {
   LineChart,
@@ -66,14 +76,17 @@ function KpiCard({
   value,
   delta,
   suffix,
+  invertDelta,
 }: {
   icon: typeof Phone;
   label: string;
   value: string | number;
   delta: number | null;
   suffix?: string;
+  invertDelta?: boolean; // quando cair é bom (ex.: TMA, cancelamento)
 }) {
-  const positive = (delta ?? 0) >= 0;
+  const up = (delta ?? 0) >= 0;
+  const positive = invertDelta ? !up : up;
   return (
     <Card className="relative overflow-hidden border-border/60">
       <div className="absolute inset-x-0 top-0 h-1 bg-[image:var(--gradient-primary)]" />
@@ -91,12 +104,12 @@ function KpiCard({
               <div
                 className={`mt-2 inline-flex items-center gap-1 text-xs font-medium ${positive ? "text-success" : "text-destructive"}`}
               >
-                {positive ? (
+                {up ? (
                   <TrendingUp className="h-3 w-3" />
                 ) : (
                   <TrendingDown className="h-3 w-3" />
                 )}
-                {positive ? "+" : ""}
+                {up ? "+" : ""}
                 {delta}% vs 7 dias anteriores
               </div>
             )}
@@ -132,6 +145,12 @@ function EmptyState() {
       </CardContent>
     </Card>
   );
+}
+
+function mmss(totalSeconds: number) {
+  const m = Math.floor(totalSeconds / 60);
+  const s = totalSeconds % 60;
+  return `${m}:${String(s).padStart(2, "0")}`;
 }
 
 function scoreCls(s: number) {
@@ -254,6 +273,104 @@ function Dashboard() {
               delta={data.kpis.aiCoverage.delta}
               suffix="%"
             />
+          </section>
+
+          <section className="space-y-3">
+            <div className="flex items-center gap-2">
+              <Phone className="h-4 w-4 text-primary" />
+              <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
+                Indicadores operacionais — call center
+              </h2>
+              <span className="text-xs text-muted-foreground">
+                derivados do diálogo atendente × cliente
+              </span>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+              <KpiCard
+                icon={Clock}
+                label="TMA estimado"
+                value={mmss(data.callCenter.ahtSeconds.value)}
+                delta={data.callCenter.ahtSeconds.delta}
+                invertDelta
+              />
+              <KpiCard
+                icon={Mic}
+                label="Fala do atendente"
+                value={data.callCenter.agentTalkRatio.value}
+                delta={data.callCenter.agentTalkRatio.delta}
+                suffix="%"
+              />
+              <KpiCard
+                icon={Repeat}
+                label="Turnos por ligação"
+                value={data.callCenter.avgTurns.value}
+                delta={data.callCenter.avgTurns.delta}
+              />
+              <KpiCard
+                icon={Target}
+                label="Resolução 1º contato"
+                value={data.callCenter.fcrRate.value}
+                delta={data.callCenter.fcrRate.delta}
+                suffix="%"
+              />
+              <KpiCard
+                icon={PhoneOff}
+                label="Taxa de cancelamento"
+                value={data.callCenter.cancelRate.value}
+                delta={data.callCenter.cancelRate.delta}
+                suffix="%"
+                invertDelta
+              />
+            </div>
+          </section>
+
+          <section className="space-y-3">
+            <div className="flex items-center gap-2">
+              <TrendingUpIcon className="h-4 w-4 text-primary" />
+              <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
+                Indicadores comerciais — vendas
+              </h2>
+              <span className="text-xs text-muted-foreground">
+                norma de monitoria de vendas Vivo Empresas
+              </span>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+              <KpiCard
+                icon={Target}
+                label="Taxa de conversão"
+                value={data.sales.conversionRate.value}
+                delta={data.sales.conversionRate.delta}
+                suffix="%"
+              />
+              <KpiCard
+                icon={Search}
+                label="Aderência à sondagem"
+                value={data.sales.sondagemScore.value}
+                delta={data.sales.sondagemScore.delta}
+                suffix="%"
+              />
+              <KpiCard
+                icon={MessagesSquare}
+                label="Argumentação"
+                value={data.sales.argumentationScore.value}
+                delta={data.sales.argumentationScore.delta}
+                suffix="%"
+              />
+              <KpiCard
+                icon={Ear}
+                label="Escuta ativa"
+                value={data.sales.activeListeningRate.value}
+                delta={data.sales.activeListeningRate.delta}
+                suffix="%"
+              />
+              <KpiCard
+                icon={ClipboardCheck}
+                label="Tabulação correta"
+                value={data.sales.taggingRate.value}
+                delta={data.sales.taggingRate.delta}
+                suffix="%"
+              />
+            </div>
           </section>
 
           <Card>

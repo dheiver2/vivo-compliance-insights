@@ -457,6 +457,24 @@ export interface DashboardData {
     openContestations: number; // contestações ainda abertas
     contestedRate: number; // % de auditorias contestadas (qualquer status)
   };
+  // Indicadores operacionais típicos de call center de operadora, derivados da
+  // conversa entre atendente e cliente na transcrição (sem timestamps reais).
+  callCenter: {
+    ahtSeconds: KpiValue; // TMA estimado (tempo médio de atendimento) em segundos
+    agentTalkRatio: KpiValue; // % do diálogo falado pelo atendente (talk ratio)
+    avgTurns: KpiValue; // turnos de diálogo por ligação (interatividade)
+    fcrRate: KpiValue; // % de resolução no primeiro contato (proxy)
+    cancelRate: KpiValue; // % de ligações com tema Cancelamento (churn)
+  };
+  // Indicadores comerciais (vendas), derivados dos critérios da norma de
+  // monitoria de vendas Vivo Empresas aplicada a cada ligação.
+  sales: {
+    conversionRate: KpiValue; // % de ligações com fechamento de venda (proxy)
+    sondagemScore: KpiValue; // aderência média ao bloco de sondagem
+    argumentationScore: KpiValue; // aderência média à estratégia/argumentação
+    activeListeningRate: KpiValue; // % com escuta ativa (não interrompeu o cliente)
+    taggingRate: KpiValue; // % com tabulação administrativa correta
+  };
 }
 
 const avg = (nums: number[]) =>
@@ -542,6 +560,98 @@ function computeTrend(calls: StoredCall[], g: TrendGranularity): TrendPoint[] {
     .sort((a, b) => a.ts - b.ts)
     .slice(-TREND_LIMIT[g])
     .map((e) => ({ day: e.label, compliance: avg(e.comp), quality: avg(e.qual) }));
+}
+
+// --- Indicadores operacionais de call center -------------------------------
+// Ritmo de fala típico em atendimento telefônico (palavras por minuto), usado
+// só para ESTIMAR a duração da ligação a partir da transcrição (não há
+// timestamps reais nas gravações importadas).
+const SPEECH_WPM = 130;
+
+// Quebra a transcrição em turnos "Atendente:"/"Cliente:" e conta as palavras de
+// cada locutor (ignorando rubricas entre parênteses, ex.: "(irritado)").
+function speakerStats(transcript: string): {
+  agentWords: number;
+  clientWords: number;
+  turns: number;
+} {
+  let agentWords = 0;
+  let clientWords = 0;
+  let turns = 0;
+  for (const raw of transcript.split(/\r?\n/)) {
+    const m = raw.match(/^\s*(atendente|cliente)\s*:\s*(.*)$/i);
+    if (!m) continue;
+    const text = m[2].replace(/\([^)]*\)/g, " ");
+    const words = text.split(/\s+/).filter(Boolean).length;
+    if (words === 0) continue;
+    turns++;
+    if (m[1].toLowerCase() === "atendente") agentWords += words;
+    else clientWords += words;
+  }
+  return { agentWords, clientWords, turns };
+}
+
+// Agrega os KPIs operacionais de uma lista de ligações.
+function computeCallCenter(list: StoredCall[]) {
+  const ahts: number[] = [];
+  const ratios: number[] = [];
+  const turnsArr: number[] = [];
+  for (const c of list) {
+    const { agentWords, clientWords, turns } = speakerStats(c.transcript);
+    const total = agentWords + clientWords;
+    if (total === 0) continue;
+    ahts.push(Math.round((total / SPEECH_WPM) * 60));
+    ratios.push(Math.round((agentWords / total) * 100));
+    turnsArr.push(turns);
+  }
+  // FCR (proxy): a ligação fechou com resumo + protocolo OU foi aprovada.
+  const resolved = (c: StoredCall) =>
+    c.status === "approved" ||
+    c.checks.some((k) => /resumo final|protocolo/i.test(k.label) && k.passed);
+  const fcr = list.length
+    ? Math.round((list.filter(resolved).length / list.length) * 100)
+    : 0;
+  const cancel = list.length
+    ? Math.round((list.filter((c) => c.topic === "Cancelamento").length / list.length) * 100)
+    : 0;
+  return {
+    aht: avg(ahts),
+    talkRatio: avg(ratios),
+    turns: avg(turnsArr),
+    fcr,
+    cancel,
+  };
+}
+
+// --- Indicadores comerciais (norma de vendas) -------------------------------
+// Localiza um check da norma por trecho do rótulo (resiliente a edição da ficha).
+function findCheck(c: StoredCall, needle: string) {
+  const n = needle.toLowerCase();
+  return c.checks.find((k) => k.label.toLowerCase().includes(n));
+}
+// Média dos scores de um critério (ignora ligações onde o item não foi avaliado).
+function avgCheckScore(list: StoredCall[], needle: string): number {
+  const scores: number[] = [];
+  for (const c of list) {
+    const k = findCheck(c, needle);
+    if (k) scores.push(k.score);
+  }
+  return avg(scores);
+}
+// % de ligações em que o critério foi cumprido (passed).
+function passRate(list: StoredCall[], needle: string): number {
+  const withItem = list.filter((c) => findCheck(c, needle));
+  if (!withItem.length) return 0;
+  return Math.round((withItem.filter((c) => findCheck(c, needle)!.passed).length / withItem.length) * 100);
+}
+function computeSales(list: StoredCall[]) {
+  return {
+    conversion: passRate(list, "fechamento"),
+    sondagem: avgCheckScore(list, "sondagem"),
+    argumentation: avgCheckScore(list, "argumenta"),
+    listening: passRate(list, "escuta ativa"),
+    tagging: passRate(list, "tabula"),
+  };
 }
 
 export async function getDashboardData(
@@ -667,6 +777,33 @@ export async function getDashboardData(
       openContestations: all.filter((c) => c.contestation?.status === "aberta").length,
       contestedRate: rate(all, (c) => Boolean(c.contestation)),
     },
+    callCenter: (() => {
+      const cur = computeCallCenter(last7);
+      const prev = computeCallCenter(prev7);
+      const allCc = computeCallCenter(all);
+      return {
+        ahtSeconds: { value: allCc.aht, delta: delta(cur.aht, prev.aht) },
+        agentTalkRatio: { value: allCc.talkRatio, delta: delta(cur.talkRatio, prev.talkRatio) },
+        avgTurns: { value: allCc.turns, delta: delta(cur.turns, prev.turns) },
+        fcrRate: { value: allCc.fcr, delta: delta(cur.fcr, prev.fcr) },
+        cancelRate: { value: allCc.cancel, delta: delta(cur.cancel, prev.cancel) },
+      };
+    })(),
+    sales: (() => {
+      const cur = computeSales(last7);
+      const prev = computeSales(prev7);
+      const allS = computeSales(all);
+      return {
+        conversionRate: { value: allS.conversion, delta: delta(cur.conversion, prev.conversion) },
+        sondagemScore: { value: allS.sondagem, delta: delta(cur.sondagem, prev.sondagem) },
+        argumentationScore: {
+          value: allS.argumentation,
+          delta: delta(cur.argumentation, prev.argumentation),
+        },
+        activeListeningRate: { value: allS.listening, delta: delta(cur.listening, prev.listening) },
+        taggingRate: { value: allS.tagging, delta: delta(cur.tagging, prev.tagging) },
+      };
+    })(),
   };
 }
 

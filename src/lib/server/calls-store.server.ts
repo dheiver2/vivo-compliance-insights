@@ -84,6 +84,10 @@ export interface StoredCall {
   // 3C Plus). Permite reproduzir o áudio bruto na aba Áudios. Ausente em
   // registros antigos e em áudios que não vieram da 3C Plus.
   sourceCallId?: string;
+  // Duração REAL da ligação em segundos, quando disponível na origem (ex.: 3C
+  // Plus). Base dos indicadores operacionais de tempo. Ausente em registros
+  // antigos e em uploads sem metadado de duração.
+  durationSec?: number;
   // Assinatura (aceite) do atendente e contestação da auditoria, quando houver.
   signature?: AuditSignature;
   contestation?: AuditContestation;
@@ -305,6 +309,8 @@ export async function recordAnalysis(input: {
   agentName?: string;
   // ID da 3C Plus usado para baixar a gravação (habilita o player de áudio bruto).
   sourceCallId?: string;
+  // Duração real da ligação (segundos), quando a origem informa. Base dos tempos.
+  durationSec?: number;
   // Data/hora REAL da ligação (ISO/RFC3339). Usada como timestamp do registro
   // para que o dashboard reflita QUANDO a chamada aconteceu — não a hora da
   // auditoria. Se ausente/ inválida, usa o instante da auditoria.
@@ -337,6 +343,9 @@ export async function recordAnalysis(input: {
     observations: analysis.observations,
     transcript,
     ...(input.sourceCallId ? { sourceCallId: input.sourceCallId } : {}),
+    ...(input.durationSec != null && input.durationSec > 0
+      ? { durationSec: Math.round(input.durationSec) }
+      : {}),
   };
   // Dedup por gravação da 3C Plus: se a mesma gravação já foi auditada, substitui
   // em vez de duplicar. Casa pelo rótulo "3C Plus · {sid}" (estável entre re-
@@ -489,9 +498,9 @@ export interface DashboardData {
   // timestamps reais nas gravações importadas).
   callCenter: {
     ahtSeconds: KpiValue; // TMA — tempo médio de atendimento (duração média)
-    agentTalkSeconds: KpiValue; // tempo médio de fala do atendente
-    clientTalkSeconds: KpiValue; // tempo médio de fala do cliente
-    secondsPerTurn: KpiValue; // tempo médio por turno de diálogo
+    medianSeconds: KpiValue; // duração mediana (central, robusta a outliers)
+    maxSeconds: KpiValue; // maior ligação
+    minSeconds: KpiValue; // menor ligação
     totalAuditedSeconds: KpiValue; // tempo total de áudio auditado (volume)
   };
   // Indicadores comerciais (vendas), derivados dos critérios da norma de
@@ -623,26 +632,27 @@ function speakerStats(transcript: string): {
 // Converte palavras em segundos de fala estimados (ritmo conversacional médio).
 const wordsToSec = (words: number) => Math.round((words / SPEECH_WPM) * 60);
 
-// Agrega os indicadores de TEMPO de uma lista de ligações. Sem timestamps reais
-// nas gravações importadas, os tempos são ESTIMADOS a partir da contagem de
-// palavras por locutor (ver SPEECH_WPM).
+// Duração (segundos) de uma ligação: usa a duração REAL da origem (3C Plus) e,
+// na ausência, ESTIMA pela contagem de palavras do diálogo (seed/demo com
+// transcrição completa). Retorna 0 quando não há nenhum sinal de tempo.
+function callDurationSec(c: StoredCall): number {
+  if (c.durationSec && c.durationSec > 0) return c.durationSec;
+  const { agentWords, clientWords } = speakerStats(c.transcript);
+  const total = agentWords + clientWords;
+  return total > 0 ? wordsToSec(total) : 0;
+}
+
+// Mediana de uma lista numérica (0 se vazia).
+function median(nums: number[]): number {
+  if (!nums.length) return 0;
+  const s = [...nums].sort((a, b) => a - b);
+  const mid = Math.floor(s.length / 2);
+  return s.length % 2 ? s[mid] : Math.round((s[mid - 1] + s[mid]) / 2);
+}
+
+// Agrega os indicadores operacionais de TEMPO a partir da duração das ligações.
 function computeCallCenter(list: StoredCall[]) {
-  const ahts: number[] = []; // duração total estimada por ligação (s)
-  const agentSecs: number[] = []; // tempo de fala do atendente (s)
-  const clientSecs: number[] = []; // tempo de fala do cliente (s)
-  const perTurnSecs: number[] = []; // tempo médio por turno (s)
-  let totalSec = 0; // soma de toda a duração auditada (s)
-  for (const c of list) {
-    const { agentWords, clientWords, turns } = speakerStats(c.transcript);
-    const total = agentWords + clientWords;
-    if (total === 0) continue;
-    const dur = wordsToSec(total);
-    ahts.push(dur);
-    agentSecs.push(wordsToSec(agentWords));
-    clientSecs.push(wordsToSec(clientWords));
-    if (turns > 0) perTurnSecs.push(Math.round(dur / turns));
-    totalSec += dur;
-  }
+  const durs = list.map(callDurationSec).filter((d) => d > 0);
   // FCR (proxy): a ligação fechou com resumo + protocolo OU foi aprovada.
   const resolved = (c: StoredCall) =>
     c.status === "approved" ||
@@ -654,11 +664,11 @@ function computeCallCenter(list: StoredCall[]) {
     ? Math.round((list.filter((c) => c.topic === "Cancelamento").length / list.length) * 100)
     : 0;
   return {
-    aht: avg(ahts),
-    agentTalk: avg(agentSecs),
-    clientTalk: avg(clientSecs),
-    perTurn: avg(perTurnSecs),
-    totalAudited: totalSec,
+    aht: avg(durs),
+    median: median(durs),
+    max: durs.length ? Math.max(...durs) : 0,
+    min: durs.length ? Math.min(...durs) : 0,
+    totalAudited: durs.reduce((a, b) => a + b, 0),
     fcr,
     cancel,
   };
@@ -831,15 +841,9 @@ export async function getDashboardData(
     },
     callCenter: {
       ahtSeconds: { value: ccAll.aht, delta: delta(ccCur.aht, ccPrev.aht) },
-      agentTalkSeconds: {
-        value: ccAll.agentTalk,
-        delta: delta(ccCur.agentTalk, ccPrev.agentTalk),
-      },
-      clientTalkSeconds: {
-        value: ccAll.clientTalk,
-        delta: delta(ccCur.clientTalk, ccPrev.clientTalk),
-      },
-      secondsPerTurn: { value: ccAll.perTurn, delta: delta(ccCur.perTurn, ccPrev.perTurn) },
+      medianSeconds: { value: ccAll.median, delta: delta(ccCur.median, ccPrev.median) },
+      maxSeconds: { value: ccAll.max, delta: delta(ccCur.max, ccPrev.max) },
+      minSeconds: { value: ccAll.min, delta: delta(ccCur.min, ccPrev.min) },
       totalAuditedSeconds: {
         value: ccAll.totalAudited,
         delta: delta(ccCur.totalAudited, ccPrev.totalAudited),

@@ -336,8 +336,8 @@ function Dashboard() {
 
             <TabsContent value="operacional" className="mt-0 space-y-3">
               <p className="text-xs text-muted-foreground">
-                Tempos estimados a partir do diálogo atendente × cliente (gravações sem timestamps
-                reais)
+                Tempos das ligações (duração real da gravação; estimada pelo diálogo quando a origem
+                não informa)
               </p>
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
                 <KpiCard
@@ -348,22 +348,23 @@ function Dashboard() {
                   invertDelta
                 />
                 <KpiCard
+                  icon={Repeat}
+                  label="Duração mediana"
+                  value={mmss(data.callCenter.medianSeconds.value)}
+                  delta={data.callCenter.medianSeconds.delta}
+                  invertDelta
+                />
+                <KpiCard
                   icon={Mic}
-                  label="Fala do atendente"
-                  value={mmss(data.callCenter.agentTalkSeconds.value)}
-                  delta={data.callCenter.agentTalkSeconds.delta}
+                  label="Maior ligação"
+                  value={mmss(data.callCenter.maxSeconds.value)}
+                  delta={data.callCenter.maxSeconds.delta}
                 />
                 <KpiCard
                   icon={Ear}
-                  label="Fala do cliente"
-                  value={mmss(data.callCenter.clientTalkSeconds.value)}
-                  delta={data.callCenter.clientTalkSeconds.delta}
-                />
-                <KpiCard
-                  icon={Repeat}
-                  label="Tempo por turno"
-                  value={mmss(data.callCenter.secondsPerTurn.value)}
-                  delta={data.callCenter.secondsPerTurn.delta}
+                  label="Menor ligação"
+                  value={mmss(data.callCenter.minSeconds.value)}
+                  delta={data.callCenter.minSeconds.delta}
                 />
                 <KpiCard
                   icon={Hourglass}

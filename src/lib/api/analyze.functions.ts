@@ -1110,6 +1110,21 @@ interface ThreeCplusReport {
   call_id?: string | number;
   call_history_id?: string | number;
   uniqueid?: string;
+  // Duração da ligação (segundos) — nomes variam entre instalações da 3C Plus.
+  speaking_time?: number | string;
+  talk_time?: number | string;
+  call_duration?: number | string;
+  duration?: number | string;
+  billed_time?: number | string;
+}
+
+// Extrai a duração (em segundos) do report, testando os campos conhecidos.
+function reportDurationSec(r: ThreeCplusReport): number | undefined {
+  for (const v of [r.speaking_time, r.talk_time, r.call_duration, r.duration, r.billed_time]) {
+    const n = typeof v === "string" ? Number(v) : v;
+    if (typeof n === "number" && Number.isFinite(n) && n > 0) return Math.round(n);
+  }
+  return undefined;
 }
 
 function toThreeCplusCall(r: ThreeCplusReport): ThreeCplusCall {
@@ -1242,6 +1257,7 @@ export const analyzeThreeCplusCall = createServerFn({ method: "POST" })
       agentName,
       sourceCallId: downloadId,
       callDate: report?.call_date_rfc3339 || report?.call_date,
+      durationSec: report ? reportDurationSec(report) : undefined,
     });
 
     return {
@@ -1528,6 +1544,7 @@ export const ingestThreeCplusBatch = createServerFn({ method: "POST" })
           agentName: r.agent || undefined,
           sourceCallId: callId,
           callDate: r.call_date_rfc3339 || r.call_date,
+          durationSec: reportDurationSec(r),
         });
         ingested++;
       } catch (error) {

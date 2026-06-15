@@ -75,7 +75,7 @@ const clamp = (n: number) => Math.max(0, Math.min(100, Math.round(n)));
 export function buildDemoCalls(now: number, rand: () => number): StoredCall[] {
   const H = 3600 * 1000;
   const rnd = (a: number, b: number) => Math.round(a + rand() * (b - a));
-  const pick = <T,>(a: readonly T[]): T => a[Math.floor(rand() * a.length)];
+  const pick = <T>(a: readonly T[]): T => a[Math.floor(rand() * a.length)];
   // 10 hoje, 9 ontem
   const plan = [...Array(10).fill("hoje"), ...Array(9).fill("ontem")];
   const calls: StoredCall[] = [];
@@ -102,7 +102,11 @@ export function buildDemoCalls(now: number, rand: () => number): StoredCall[] {
     const sentiment = pick(SENTIMENTS);
     const scoreQuality = clamp(
       scoreCompliance +
-        (sentiment === "positivo" ? rnd(0, 8) : sentiment === "negativo" ? -rnd(4, 14) : rnd(-4, 4)),
+        (sentiment === "positivo"
+          ? rnd(0, 8)
+          : sentiment === "negativo"
+            ? -rnd(4, 14)
+            : rnd(-4, 4)),
     );
     const topic = pick(TOPICS);
     const ageH = dia === "hoje" ? rnd(2, 21) : rnd(26, 46);

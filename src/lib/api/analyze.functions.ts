@@ -1437,11 +1437,13 @@ async function downloadRecordingByHandle(handle: string, token: string): Promise
     report = null;
   }
 
-  const ids = [...new Set(
-    [report?.id, report?.telephony_id, report?.sid, handle]
-      .map((v) => (v == null ? "" : String(v).trim()))
-      .filter(Boolean),
-  )];
+  const ids = [
+    ...new Set(
+      [report?.id, report?.telephony_id, report?.sid, handle]
+        .map((v) => (v == null ? "" : String(v).trim()))
+        .filter(Boolean),
+    ),
+  ];
   const recUrl = report?.recording?.trim();
   const bearer = { Accept: "*/*", Authorization: `Bearer ${token}` };
   const plain = { Accept: "*/*" };
@@ -1451,7 +1453,11 @@ async function downloadRecordingByHandle(handle: string, token: string): Promise
 
   // 1) Campo `recording` do report (com token, como está, e com Bearer).
   if (recUrl && /^https?:\/\//i.test(recUrl)) {
-    attempts.push({ label: "rec-field+token", url: maybeAppendToken(recUrl, token), headers: plain });
+    attempts.push({
+      label: "rec-field+token",
+      url: maybeAppendToken(recUrl, token),
+      headers: plain,
+    });
     attempts.push({ label: "rec-field-asis", url: recUrl, headers: plain });
     attempts.push({ label: "rec-field+bearer", url: recUrl, headers: bearer });
   }
@@ -1461,9 +1467,21 @@ async function downloadRecordingByHandle(handle: string, token: string): Promise
   for (const id of ids) {
     for (const host of THREECPLUS_API_HOSTS) {
       const path = `${host}/calls/${encodeURIComponent(id)}/recording`;
-      attempts.push({ label: `${host.replace(/^https:\/\//, "")}|${id}|orig|q`, url: `${path}?original=true&api_token=${encodeURIComponent(token)}`, headers: plain });
-      attempts.push({ label: `${host.replace(/^https:\/\//, "")}|${id}|q`, url: withApiToken(path, token), headers: plain });
-      attempts.push({ label: `${host.replace(/^https:\/\//, "")}|${id}|orig|bearer`, url: `${path}?original=true`, headers: bearer });
+      attempts.push({
+        label: `${host.replace(/^https:\/\//, "")}|${id}|orig|q`,
+        url: `${path}?original=true&api_token=${encodeURIComponent(token)}`,
+        headers: plain,
+      });
+      attempts.push({
+        label: `${host.replace(/^https:\/\//, "")}|${id}|q`,
+        url: withApiToken(path, token),
+        headers: plain,
+      });
+      attempts.push({
+        label: `${host.replace(/^https:\/\//, "")}|${id}|orig|bearer`,
+        url: `${path}?original=true`,
+        headers: bearer,
+      });
     }
   }
 

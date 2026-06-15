@@ -6,7 +6,8 @@ import reactRefresh from "eslint-plugin-react-refresh";
 import tseslint from "typescript-eslint";
 
 export default tseslint.config(
-  { ignores: ["dist", ".output", ".vinxi"] },
+  // Artefatos gerados (build, saída Vercel/Nitro, capturas) não são lintados.
+  { ignores: ["dist", ".output", ".vinxi", ".vercel", ".nitro", ".tanstack", "screenshots"] },
   {
     extends: [js.configs.recommended, ...tseslint.configs.recommended],
     files: ["**/*.{ts,tsx}"],

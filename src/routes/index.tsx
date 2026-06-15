@@ -37,7 +37,10 @@ export const Route = createFileRoute("/")({
       const data: DashboardData = await getDashboard({ data: { granularity: "day" } });
       return {
         stats: [
-          { value: data.kpis.totalCalls.value.toLocaleString("pt-BR"), label: "Ligações auditadas" },
+          {
+            value: data.kpis.totalCalls.value.toLocaleString("pt-BR"),
+            label: "Ligações auditadas",
+          },
           { value: `${data.kpis.avgCompliance.value}%`, label: "Compliance médio" },
           { value: String(data.modelUsage.length), label: "Componentes de IA" },
           { value: `${data.kpis.aiCoverage.value}%`, label: "Cobertura da IA" },
@@ -104,13 +107,12 @@ const steps = [
 function Landing() {
   // Números reais resolvidos no servidor (loader). Fallback honesto se o backend falhar.
   const { stats: loaded } = Route.useLoaderData();
-  const stats: LandingStats =
-    loaded ?? [
-      { value: "—", label: "Ligações auditadas" },
-      { value: "—", label: "Compliance médio" },
-      { value: "—", label: "Componentes de IA" },
-      { value: "—", label: "Cobertura da IA" },
-    ];
+  const stats: LandingStats = loaded ?? [
+    { value: "—", label: "Ligações auditadas" },
+    { value: "—", label: "Compliance médio" },
+    { value: "—", label: "Componentes de IA" },
+    { value: "—", label: "Cobertura da IA" },
+  ];
 
   return (
     <div className="min-h-screen bg-background text-foreground font-sans">

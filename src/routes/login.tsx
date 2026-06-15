@@ -79,7 +79,10 @@ function LoginPage() {
             Informe a senha de acesso à plataforma de auditoria.
           </p>
 
-          <label className="mt-6 block text-xs font-medium text-muted-foreground" htmlFor="password">
+          <label
+            className="mt-6 block text-xs font-medium text-muted-foreground"
+            htmlFor="password"
+          >
             Senha
           </label>
           <div className="relative mt-1.5">

@@ -23,10 +23,7 @@ import { readFile, writeFile, access } from "node:fs/promises";
 import { resolve } from "node:path";
 import process from "node:process";
 
-const configPath = resolve(
-  process.cwd(),
-  ".vercel/output/functions/__server.func/.vc-config.json",
-);
+const configPath = resolve(process.cwd(), ".vercel/output/functions/__server.func/.vc-config.json");
 
 async function main() {
   try {

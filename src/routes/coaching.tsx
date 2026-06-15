@@ -143,10 +143,7 @@ function CoachingPage() {
               </CardHeader>
               <CardContent className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 pt-0">
                 {teamFocus.map((c) => (
-                  <div
-                    key={c.label}
-                    className="rounded-lg border border-border/60 bg-muted/20 p-3"
-                  >
+                  <div key={c.label} className="rounded-lg border border-border/60 bg-muted/20 p-3">
                     <div className="flex items-center justify-between gap-2">
                       <span className="text-xs uppercase tracking-wide text-muted-foreground">
                         Média do time

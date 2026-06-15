@@ -219,7 +219,8 @@ export function ReviewPanel({ call }: { call: StoredCall }) {
                 </div>
               ) : (
                 <p className="border-t border-border/60 pt-3 text-xs text-muted-foreground">
-                  Resolvida ({ct.status}) por {ct.resolvedBy} em {ct.resolvedAt ? fmt(ct.resolvedAt) : "—"}
+                  Resolvida ({ct.status}) por {ct.resolvedBy} em{" "}
+                  {ct.resolvedAt ? fmt(ct.resolvedAt) : "—"}
                   {ct.resolution ? `: ${ct.resolution}` : ""}.
                 </p>
               )}
@@ -317,8 +318,16 @@ export function ReviewPanel({ call }: { call: StoredCall }) {
 
 function ContestationBadge({ status }: { status: "aberta" | "aceita" | "rejeitada" }) {
   const map = {
-    aberta: { label: "Aberta", cls: "bg-warning/20 text-warning-foreground border-warning/40", Icon: Clock },
-    aceita: { label: "Aceita", cls: "bg-success/15 text-success border-success/30", Icon: CheckCircle2 },
+    aberta: {
+      label: "Aberta",
+      cls: "bg-warning/20 text-warning-foreground border-warning/40",
+      Icon: Clock,
+    },
+    aceita: {
+      label: "Aceita",
+      cls: "bg-success/15 text-success border-success/30",
+      Icon: CheckCircle2,
+    },
     rejeitada: {
       label: "Rejeitada",
       cls: "bg-destructive/15 text-destructive border-destructive/30",

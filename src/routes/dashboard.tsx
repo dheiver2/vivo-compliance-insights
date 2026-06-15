@@ -107,11 +107,7 @@ function KpiCard({
               <div
                 className={`mt-2 inline-flex items-center gap-1 text-xs font-medium ${positive ? "text-success" : "text-destructive"}`}
               >
-                {up ? (
-                  <TrendingUp className="h-3 w-3" />
-                ) : (
-                  <TrendingDown className="h-3 w-3" />
-                )}
+                {up ? <TrendingUp className="h-3 w-3" /> : <TrendingDown className="h-3 w-3" />}
                 {up ? "+" : ""}
                 {delta}% vs dia anterior
               </div>

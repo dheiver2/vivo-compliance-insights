@@ -16,7 +16,12 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { getSystemStatus, clearCalls, seedDemo, type SystemStatus } from "@/lib/api/calls.functions";
+import {
+  getSystemStatus,
+  clearCalls,
+  seedDemo,
+  type SystemStatus,
+} from "@/lib/api/calls.functions";
 import { ingestThreeCplusBatch, testThreeCplusConnection } from "@/lib/api/analyze.functions";
 import { mangabaModelName } from "@/lib/mangaba";
 import {
@@ -110,12 +115,10 @@ function ThreeCplusIngestCard() {
   const test = useMutation({
     mutationFn: () => testThreeCplusConnection({ data: { apiToken: apiToken.trim() } }),
     onSuccess: (r) => (r.voiceReady ? toast.success(r.message) : toast.warning(r.message)),
-    onError: (e) =>
-      toast.error(e instanceof Error ? e.message : "Falha ao conectar na 3C Plus."),
+    onError: (e) => toast.error(e instanceof Error ? e.message : "Falha ao conectar na 3C Plus."),
   });
 
-  const canIngest =
-    startDate.trim().length > 0 && endDate.trim().length > 0 && !ingest.isPending;
+  const canIngest = startDate.trim().length > 0 && endDate.trim().length > 0 && !ingest.isPending;
 
   return (
     <Card>
@@ -361,8 +364,8 @@ function SettingsPage() {
                     <AlertDialogHeader>
                       <AlertDialogTitle>Popular com dados de demonstração?</AlertDialogTitle>
                       <AlertDialogDescription>
-                        Substitui as {data.totalCalls} análise(s) atuais por ~19 ligações de
-                        exemplo datadas de hoje e ontem. Use “Limpar dados” para remover depois.
+                        Substitui as {data.totalCalls} análise(s) atuais por ~19 ligações de exemplo
+                        datadas de hoje e ontem. Use “Limpar dados” para remover depois.
                       </AlertDialogDescription>
                     </AlertDialogHeader>
                     <AlertDialogFooter>

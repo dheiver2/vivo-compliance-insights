@@ -231,9 +231,7 @@ async function loadFromBackend(api: StorageBackend): Promise<void> {
       store.length = 0;
       // Backfill de campos novos para registros gravados antes da entidade de
       // agente existir — garante que toda ligação tenha um atendente.
-      store.push(
-        ...data.calls.map((c) => ({ ...c, agentName: normalizeAgentName(c.agentName) })),
-      );
+      store.push(...data.calls.map((c) => ({ ...c, agentName: normalizeAgentName(c.agentName) })));
     }
     // seq segue o backend (fonte da verdade), inclusive quando DIMINUI após uma
     // limpeza — do contrário um isolate manteria um seq alto e obsoleto.
@@ -700,9 +698,7 @@ function computeCallCenter(list: StoredCall[]) {
   const resolved = (c: StoredCall) =>
     c.status === "approved" ||
     c.checks.some((k) => /resumo final|protocolo|fechamento/i.test(k.label) && k.passed);
-  const fcr = list.length
-    ? Math.round((list.filter(resolved).length / list.length) * 100)
-    : 0;
+  const fcr = list.length ? Math.round((list.filter(resolved).length / list.length) * 100) : 0;
   const cancel = list.length
     ? Math.round((list.filter((c) => c.topic === "Cancelamento").length / list.length) * 100)
     : 0;
@@ -736,7 +732,9 @@ function avgCheckScore(list: StoredCall[], needle: string): number {
 function passRate(list: StoredCall[], needle: string): number {
   const withItem = list.filter((c) => findCheck(c, needle));
   if (!withItem.length) return 0;
-  return Math.round((withItem.filter((c) => findCheck(c, needle)!.passed).length / withItem.length) * 100);
+  return Math.round(
+    (withItem.filter((c) => findCheck(c, needle)!.passed).length / withItem.length) * 100,
+  );
 }
 function computeSales(list: StoredCall[]) {
   return {

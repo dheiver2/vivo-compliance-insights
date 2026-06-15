@@ -278,7 +278,8 @@ function AudiosPage() {
   const [recQueue, setRecQueue] = useState("all");
 
   const recAgents = useMemo(
-    () => [...new Set(calls.map((c) => c.agent).filter(Boolean))].sort((a, b) => a.localeCompare(b)),
+    () =>
+      [...new Set(calls.map((c) => c.agent).filter(Boolean))].sort((a, b) => a.localeCompare(b)),
     [calls],
   );
   const recCampaigns = useMemo(
@@ -288,7 +289,9 @@ function AudiosPage() {
   );
   const recQueues = useMemo(
     () =>
-      [...new Set(calls.map((c) => c.queueName).filter(Boolean))].sort((a, b) => a.localeCompare(b)),
+      [...new Set(calls.map((c) => c.queueName).filter(Boolean))].sort((a, b) =>
+        a.localeCompare(b),
+      ),
     [calls],
   );
   const filteredCalls = useMemo(() => {
@@ -319,10 +322,7 @@ function AudiosPage() {
   );
 
   const recFilterActive =
-    recSearch.trim() !== "" ||
-    recAgent !== "all" ||
-    recCampaign !== "all" ||
-    recQueue !== "all";
+    recSearch.trim() !== "" || recAgent !== "all" || recCampaign !== "all" || recQueue !== "all";
 
   const selectedIds = useMemo(
     () => auditable.map(callKey).filter((k) => selected.has(k)),
@@ -334,7 +334,8 @@ function AudiosPage() {
     if (running) return;
     setSelected((prev) => {
       const next = new Set(prev);
-      next.has(key) ? next.delete(key) : next.add(key);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
       return next;
     });
   }
@@ -350,7 +351,9 @@ function AudiosPage() {
     if (running || selectedIds.length === 0) return;
     setRunning(true);
     cancelRef.current = false;
-    setProgress(Object.fromEntries(selectedIds.map((id) => [id, { status: "queued" } as ItemState])));
+    setProgress(
+      Object.fromEntries(selectedIds.map((id) => [id, { status: "queued" } as ItemState])),
+    );
 
     let ok = 0;
     let fail = 0;
@@ -450,10 +453,7 @@ function AudiosPage() {
           <ItemBadge recorded={c.recorded} state={st} />
         </div>
         {au?.error && <p className="mt-2 text-xs text-destructive">{au.error}</p>}
-        {au?.url && (
-          // eslint-disable-next-line jsx-a11y/media-has-caption
-          <audio src={au.url} controls autoPlay className="mt-2 h-9 w-full" />
-        )}
+        {au?.url && <audio src={au.url} controls autoPlay className="mt-2 h-9 w-full" />}
       </div>
     );
   }
@@ -501,8 +501,8 @@ function AudiosPage() {
           </CardTitle>
           <CardDescription>
             Gravações de áudio do acervo. Só áudios reais da 3C Plus tocam — itens marcados como
-            “demonstração” (seed) não têm gravação. Importe ligações reais na busca abaixo. A análise
-            fica na ficha.
+            “demonstração” (seed) não têm gravação. Importe ligações reais na busca abaixo. A
+            análise fica na ficha.
           </CardDescription>
         </CardHeader>
         <CardContent className="pt-0 space-y-3">
@@ -676,9 +676,7 @@ function AudiosPage() {
             </div>
           </div>
           <Button
-            onClick={() =>
-              listMut.mutate({ startDate: startDate.trim(), endDate: endDate.trim() })
-            }
+            onClick={() => listMut.mutate({ startDate: startDate.trim(), endDate: endDate.trim() })}
             disabled={!canList}
           >
             {listMut.isPending ? (
@@ -838,9 +836,7 @@ function AudiosPage() {
             <Tabs defaultValue="eligible" className="space-y-3">
               <TabsList>
                 <TabsTrigger value="eligible">Elegíveis ({auditable.length})</TabsTrigger>
-                <TabsTrigger value="ineligible">
-                  Não elegíveis ({ineligible.length})
-                </TabsTrigger>
+                <TabsTrigger value="ineligible">Não elegíveis ({ineligible.length})</TabsTrigger>
               </TabsList>
 
               <TabsContent value="eligible" className="mt-0">
@@ -1056,10 +1052,7 @@ function RawAudioRow({
         <p className="mt-2 text-xs text-destructive">{analyzeState.message}</p>
       )}
       {au?.error && <p className="mt-2 text-xs text-destructive">{au.error}</p>}
-      {au?.url && (
-        // eslint-disable-next-line jsx-a11y/media-has-caption
-        <audio src={au.url} controls autoPlay className="mt-2 h-9 w-full" />
-      )}
+      {au?.url && <audio src={au.url} controls autoPlay className="mt-2 h-9 w-full" />}
     </div>
   );
 }

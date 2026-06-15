@@ -40,15 +40,22 @@ async function main() {
   const raw = await readFile(configPath, "utf8");
   const config = JSON.parse(raw);
 
-  if (config.supportsResponseStreaming === false) {
-    console.log("[fix-vercel-runtime] response streaming já desabilitado — ok.");
+  // Timeout da função serverless. A ingestão da 3C Plus roda EM SÉRIE (download +
+  // Whisper ASR com cold-start + LLM por ligação), então o timeout padrão da
+  // Vercel (10-15s) estoura e a importação "não funciona". Elevamos o TETO para
+  // 300s (máximo do plano Pro). Requests rápidos (SSR, dashboard) não mudam.
+  const MAX_DURATION = 300;
+
+  if (config.supportsResponseStreaming === false && config.maxDuration === MAX_DURATION) {
+    console.log("[fix-vercel-runtime] config já aplicada (streaming + maxDuration) — ok.");
     return;
   }
 
   config.supportsResponseStreaming = false;
+  config.maxDuration = MAX_DURATION;
   await writeFile(configPath, JSON.stringify(config, null, 2) + "\n", "utf8");
   console.log(
-    `[fix-vercel-runtime] supportsResponseStreaming=false (runtime mantido: ${config.runtime}).`,
+    `[fix-vercel-runtime] supportsResponseStreaming=false, maxDuration=${MAX_DURATION}s (runtime: ${config.runtime}).`,
   );
 }
 

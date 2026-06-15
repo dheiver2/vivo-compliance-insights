@@ -17,7 +17,7 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { getSystemStatus, clearCalls, seedDemo, type SystemStatus } from "@/lib/api/calls.functions";
-import { ingestThreeCplusBatch } from "@/lib/api/analyze.functions";
+import { ingestThreeCplusBatch, testThreeCplusConnection } from "@/lib/api/analyze.functions";
 import { mangabaModelName } from "@/lib/mangaba";
 import {
   Settings,
@@ -106,6 +106,14 @@ function ThreeCplusIngestCard() {
     onError: (e) => toast.error(e instanceof Error ? e.message : "Falha na ingestão da 3C Plus."),
   });
 
+  // Teste leve: valida token + conectividade + Mangaba Voz sem rodar lote inteiro.
+  const test = useMutation({
+    mutationFn: () => testThreeCplusConnection({ data: { apiToken: apiToken.trim() } }),
+    onSuccess: (r) => (r.voiceReady ? toast.success(r.message) : toast.warning(r.message)),
+    onError: (e) =>
+      toast.error(e instanceof Error ? e.message : "Falha ao conectar na 3C Plus."),
+  });
+
   const canIngest =
     startDate.trim().length > 0 && endDate.trim().length > 0 && !ingest.isPending;
 
@@ -178,21 +186,39 @@ function ThreeCplusIngestCard() {
             />
           </div>
         </div>
-        <div className="flex items-center justify-between gap-4">
+        <div className="flex flex-wrap items-center justify-between gap-3">
           <p className="text-xs text-muted-foreground">
             Adiciona as ligações ao acervo existente (não sobrescreve).
           </p>
-          <Button onClick={() => ingest.mutate()} disabled={!canIngest}>
-            {ingest.isPending ? (
-              <>
-                <Loader2 className="h-4 w-4 mr-2 animate-spin" /> Importando…
-              </>
-            ) : (
-              <>
-                <Download className="h-4 w-4 mr-2" /> Importar ligações reais
-              </>
-            )}
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              onClick={() => test.mutate()}
+              disabled={test.isPending || ingest.isPending}
+              title="Valida o token e a conexão com a 3C Plus sem importar nada"
+            >
+              {test.isPending ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" /> Testando…
+                </>
+              ) : (
+                <>
+                  <PhoneCall className="h-4 w-4 mr-2" /> Testar conexão
+                </>
+              )}
+            </Button>
+            <Button onClick={() => ingest.mutate()} disabled={!canIngest}>
+              {ingest.isPending ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" /> Importando…
+                </>
+              ) : (
+                <>
+                  <Download className="h-4 w-4 mr-2" /> Importar ligações reais
+                </>
+              )}
+            </Button>
+          </div>
         </div>
         {ingest.data && ingest.data.errors.length > 0 && (
           <div className="rounded-md border border-border/60 bg-muted/30 p-3 text-xs space-y-1 max-h-40 overflow-auto">

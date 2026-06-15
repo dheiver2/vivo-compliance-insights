@@ -1221,6 +1221,46 @@ export const listThreeCplusCalls = createServerFn({ method: "GET" })
     return list.map(toThreeCplusCall);
   });
 
+// Teste leve de conexão com a 3C Plus: valida o token e a conectividade SEM rodar
+// uma ingestão inteira (busca no máximo 1 ligação numa janela recente). Também
+// reporta se o Mangaba Voz (HF_TOKEN) está ativo, pois a ASR é obrigatória na
+// ingestão real. Usado pelo botão "Testar conexão" em Configurações.
+export const testThreeCplusConnection = createServerFn({ method: "POST" })
+  .inputValidator(z.object({ apiToken: z.string().optional().default("") }).optional())
+  .handler(
+    async ({
+      data,
+    }): Promise<{ ok: boolean; sampleCount: number; voiceReady: boolean; message: string }> => {
+      requireAuth();
+      const token = resolveThreeCplusToken(data?.apiToken); // lança erro claro se ausente
+      // Janela recente (7 dias) só para validar credencial + conectividade.
+      const end = new Date();
+      const start = new Date(end.getTime() - 7 * 24 * 3600 * 1000);
+      const fmt = (d: Date) => d.toISOString().slice(0, 19).replace("T", " ");
+      const params = new URLSearchParams({
+        start_date: fmt(start),
+        end_date: fmt(end),
+        per_page: "1",
+        with_mailing: "false",
+      });
+      const reports = await threeCplusGet<ThreeCplusReport[]>(`/calls?${params.toString()}`, token);
+      const sampleCount = Array.isArray(reports) ? reports.length : 0;
+      const voiceReady = Boolean(process.env.HF_TOKEN);
+      const parts = ["Conexão com a 3C Plus OK (token válido)."];
+      parts.push(
+        sampleCount > 0
+          ? "Há ligações disponíveis na janela recente."
+          : "Sem ligações nos últimos 7 dias — credencial válida mesmo assim.",
+      );
+      parts.push(
+        voiceReady
+          ? "Mangaba Voz (transcrição) ativo."
+          : "ATENÇÃO: Mangaba Voz indisponível (HF_TOKEN ausente) — a ingestão real precisa dele.",
+      );
+      return { ok: true, sampleCount, voiceReady, message: parts.join(" ") };
+    },
+  );
+
 const AnalyzeThreeCplusInput = z.object({
   callId: z.string().min(1, "Informe o ID (ou SID) da ligação na 3C Plus."),
   agentName: z.string().optional(),

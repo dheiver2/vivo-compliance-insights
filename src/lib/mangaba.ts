@@ -23,6 +23,8 @@ const MODEL_CATALOG: Record<string, string> = {
   huggingface: "Mangaba Compliance",
   heurística: "Mangaba Básico",
   heuristic: "Mangaba Básico",
+  // análise resolvida pelo Mangaba Gateway (self-hosted) — provedor principal
+  "mangaba-gateway": "Mangaba Compliance",
 };
 
 // Nome de produto Mangaba para qualquer modelo/identificador técnico.

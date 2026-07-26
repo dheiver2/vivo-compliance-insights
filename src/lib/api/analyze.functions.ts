@@ -18,6 +18,23 @@ import { getCachedAnalysis, setCachedAnalysis } from "../server/ai-cache.server"
 const HF_ROUTER_URL = "https://router.huggingface.co/v1/chat/completions";
 const DEFAULT_MODEL = "meta-llama/Llama-3.1-8B-Instruct";
 
+// Mangaba Gateway (self-hosted, exposto via ngrok) — provedor de IA PRINCIPAL
+// para a análise de compliance. A HuggingFace acima passa a ser o FALLBACK,
+// acionado apenas quando o gateway falhar, estiver indisponível ou devolver
+// algo fora do contrato esperado (ver `parseLlmContent`/`ModelResponseSchema`).
+//
+// Importante: o endpoint `/chat` do gateway é um chat CONVERSACIONAL genérico
+// (roteia entre os modelos do Mangaba AI) — não é a API OpenAI-compatible da
+// HuggingFace. Ele não aceita roles system/user separados nem parâmetros de
+// temperature/max_tokens; por isso o prompt do sistema (schema JSON + regras)
+// e a transcrição são concatenados numa ÚNICA mensagem. Cada chamada usa um
+// session_id novo/descartável: a auditoria é STATELESS (cada ligação é
+// independente) e não deve herdar histórico de conversa do lado do gateway.
+const MANGABA_GATEWAY_MODEL_LABEL = "mangaba-gateway";
+function mangabaGatewayUrl(): string {
+  return (process.env.MANGABA_GATEWAY_URL || "https://mangaba.ngrok.app").replace(/\/$/, "");
+}
+
 // Automatic Speech Recognition (transcrição) via HuggingFace Inference.
 const HF_ASR_URL_BASE = "https://router.huggingface.co/hf-inference/models/";
 // whisper-large-v3-turbo é ~2x mais rápido (≈3,4s vs 7,7s warm) com transcrição
@@ -119,43 +136,10 @@ interface LlmResult {
   observations: CallObservation[];
 }
 
-// Chama o LLM SÓ para os critérios informados (os que a heurística não resolveu).
-// Usa transcrição comprimida/janelada + schema compacto para minimizar tokens.
-async function analyzeWithHuggingFace(
-  transcript: string,
-  token: string,
-  model: string,
-  criteria: MonitoringCriterion[],
-): Promise<LlmResult> {
-  const promptTranscript = windowTranscript(compressTranscript(transcript));
-  const res = await fetch(HF_ROUTER_URL, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${token}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      model,
-      temperature: 0.2,
-      max_tokens: LLM_MAX_TOKENS,
-      messages: [
-        { role: "system", content: buildSystemPrompt(criteria) },
-        { role: "user", content: `Transcrição:\n${promptTranscript}` },
-      ],
-    }),
-  });
-
-  if (!res.ok) {
-    const detail = await res.text().catch(() => "");
-    throw new Error(`Mangaba AI ${res.status}: ${detail.slice(0, 300)}`);
-  }
-
-  const payload = (await res.json()) as {
-    choices?: { message?: { content?: string } }[];
-  };
-  const content = payload.choices?.[0]?.message?.content;
-  if (!content) throw new Error("Resposta vazia do modelo.");
-
+// Interpreta a resposta textual do modelo (HuggingFace OU Mangaba Gateway) sob
+// o MESMO contrato de saída (schema JSON compacto). Compartilhado pelos dois
+// provedores para que a troca de provedor nunca altere a lógica de parsing.
+function parseLlmContent(content: string, criteria: MonitoringCriterion[]): LlmResult {
   const parsed = ModelResponseSchema.parse(extractJson(content));
 
   // Casa cada critério enviado com o item de nº "i" (ou pela posição como
@@ -201,6 +185,108 @@ async function analyzeWithHuggingFace(
     checks,
     observations,
   };
+}
+
+// Chama o LLM (HuggingFace) SÓ para os critérios informados (os que a
+// heurística não resolveu, e que o Mangaba Gateway não conseguiu avaliar).
+// Usa transcrição comprimida/janelada + schema compacto para minimizar tokens.
+async function analyzeWithHuggingFace(
+  transcript: string,
+  token: string,
+  model: string,
+  criteria: MonitoringCriterion[],
+): Promise<LlmResult> {
+  const promptTranscript = windowTranscript(compressTranscript(transcript));
+  const res = await fetch(HF_ROUTER_URL, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      model,
+      temperature: 0.2,
+      max_tokens: LLM_MAX_TOKENS,
+      messages: [
+        { role: "system", content: buildSystemPrompt(criteria) },
+        { role: "user", content: `Transcrição:\n${promptTranscript}` },
+      ],
+    }),
+  });
+
+  if (!res.ok) {
+    const detail = await res.text().catch(() => "");
+    throw new Error(`Mangaba AI ${res.status}: ${detail.slice(0, 300)}`);
+  }
+
+  const payload = (await res.json()) as {
+    choices?: { message?: { content?: string } }[];
+  };
+  const content = payload.choices?.[0]?.message?.content;
+  if (!content) throw new Error("Resposta vazia do modelo.");
+
+  return parseLlmContent(content, criteria);
+}
+
+// Chama o Mangaba Gateway (self-hosted, PROVEDOR PRINCIPAL) via seu endpoint
+// de chat genérico (`/chat`, FormData com session_id + message). Diferente da
+// HuggingFace, o gateway não tem parâmetros de temperature/max_tokens nem
+// roles system/user — por isso o prompt (schema + regras + transcrição) vai
+// tudo concatenado numa única mensagem, e a resposta livre é interpretada
+// pelo MESMO parser (`parseLlmContent`) usado para a HuggingFace.
+//
+// Retorna `null` (nunca lança) em QUALQUER falha — rede, timeout, HTTP não-ok,
+// JSON ausente/malformado ou fora do schema esperado — para que o chamador
+// caia de forma transparente no fallback HuggingFace, sem afetar o restante
+// do pipeline (cache, heurística, etc.).
+async function analyzeWithMangabaGateway(
+  transcript: string,
+  criteria: MonitoringCriterion[],
+): Promise<LlmResult | null> {
+  const promptTranscript = windowTranscript(compressTranscript(transcript));
+  const prompt = `${buildSystemPrompt(criteria)}\n\nTranscrição:\n${promptTranscript}`;
+  // session_id descartável e único por chamada: cada auditoria é STATELESS
+  // (ligações não relacionadas) e não deve herdar histórico de conversa
+  // guardado pelo gateway entre chamadas.
+  const sessionId = `compliance-analysis:${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
+  const baseUrl = mangabaGatewayUrl();
+
+  let content: string;
+  try {
+    const form = new FormData();
+    form.append("session_id", sessionId);
+    form.append("message", prompt);
+    const res = await fetch(`${baseUrl}/chat`, {
+      method: "POST",
+      headers: { "ngrok-skip-browser-warning": "1" },
+      body: form,
+      signal: AbortSignal.timeout(60_000),
+    });
+    if (!res.ok) {
+      await res.text().catch(() => "");
+      return null;
+    }
+    const data = (await res.json().catch(() => null)) as { response?: unknown } | null;
+    // ChatResponse esperado: { session_id, response, history_length }.
+    if (!data || typeof data.response !== "string" || !data.response) return null;
+    content = data.response;
+  } catch (error) {
+    console.error("Mangaba Gateway indisponível, caindo para HuggingFace:", error);
+    return null;
+  }
+
+  try {
+    return parseLlmContent(content, criteria);
+  } catch (error) {
+    // O gateway respondeu, mas fora do contrato JSON esperado (ex.: resposta
+    // conversacional em vez do schema de auditoria) — trata como indisponível
+    // para esta finalidade e cai no fallback, sem quebrar o pipeline.
+    console.error(
+      "Mangaba Gateway retornou fora do formato esperado, caindo para HuggingFace:",
+      error,
+    );
+    return null;
+  }
 }
 
 // Regras de palavra-chave por rótulo CANÔNICO da ficha padrão. Critérios
@@ -409,7 +495,7 @@ function weightedCompliance(checks: ComplianceCheck[], criteria: MonitoringCrite
 // críticos (nunca auto-aprovados). Junta tudo e deriva o compliance ponderado.
 async function analyzeHybrid(
   transcript: string,
-  token: string,
+  token: string | undefined,
   model: string,
   criteria: MonitoringCriterion[],
 ): Promise<CallAnalysis> {
@@ -425,10 +511,23 @@ async function analyzeHybrid(
     }
   }
 
-  // Só aciona o LLM se sobrou algo para julgar.
-  const llm = remaining.length
-    ? await analyzeWithHuggingFace(transcript, token, model, remaining)
-    : null;
+  // Só aciona o LLM se sobrou algo para julgar. Mangaba Gateway (self-hosted) é
+  // o provedor PRINCIPAL; a HuggingFace só é chamada se o gateway falhar, ficar
+  // indisponível ou devolver algo fora do contrato esperado. Se nem o gateway
+  // nem a HuggingFace (por falta de HF_TOKEN) puderem ser tentados, propaga o
+  // erro — o chamador (`analyzeTranscript`) cai para a heurística local.
+  let llm: LlmResult | null = null;
+  let llmModel = model;
+  if (remaining.length) {
+    llm = await analyzeWithMangabaGateway(transcript, remaining);
+    if (llm) {
+      llmModel = MANGABA_GATEWAY_MODEL_LABEL;
+    } else if (token) {
+      llm = await analyzeWithHuggingFace(transcript, token, model, remaining);
+    } else {
+      throw new Error("Mangaba Gateway indisponível e HF_TOKEN não configurado (fallback).");
+    }
+  }
 
   const llmByLabel = new Map((llm?.checks ?? []).map((c) => [c.label, c]));
   const checks: ComplianceCheck[] = criteria.map(
@@ -455,7 +554,7 @@ async function analyzeHybrid(
       checks,
       observations: llm.observations,
       source: "huggingface",
-      model,
+      model: llmModel,
     };
   }
 
@@ -483,16 +582,16 @@ async function analyzeTranscript(transcript: string): Promise<CallAnalysis> {
   const cached = await getCachedAnalysis(key);
   if (cached) return cached;
 
-  // Sem token: heurística local (custo zero, determinística) — nada a cachear.
-  if (!token) return analyzeHeuristic(transcript, criteria);
-
+  // O Mangaba Gateway (self-hosted) não exige HF_TOKEN — por isso é sempre
+  // tentado primeiro, mesmo sem o token configurado. Só cai para a heurística
+  // local se o gateway falhar E a HuggingFace também (ou não tiver token).
   try {
     const result = await analyzeHybrid(transcript, token, model, criteria);
     // Só cacheia análise REAL (Mangaba AI) — nunca o fallback degradado.
     if (result.source === "huggingface") await setCachedAnalysis(key, result);
     return result;
   } catch (error) {
-    console.error("Falha na análise HuggingFace, usando heurística:", error);
+    console.error("Falha na análise via Mangaba Gateway/HuggingFace, usando heurística:", error);
     const fallback = analyzeHeuristic(transcript, criteria);
     fallback.summary = `Falha ao acionar a Mangaba AI — exibindo análise do Mangaba Básico. (${
       error instanceof Error ? error.message : "erro desconhecido"
